@@ -1,0 +1,815 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Método Camocim</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+<style>
+:root{
+  --azul:#1f4e8c; --azul2:#163a69; --azul-claro:#e8f0fb;
+  --verde:#1e8e4e; --verde-bg:#e6f6ec; --verm:#c0392b; --verm-bg:#fdecea;
+  --cinza:#5b6472; --borda:#dde3ea; --fundo:#f3f5f8; --texto:#1d2430; --amarelo:#f5b301;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--fundo);color:var(--texto);font-size:15px;line-height:1.5}
+button{font-family:inherit;cursor:pointer}
+header{background:var(--azul);color:#fff;padding:0 20px;display:flex;align-items:center;gap:24px;height:56px;position:sticky;top:0;z-index:10;box-shadow:0 2px 6px rgba(0,0,0,.15)}
+header .logo{font-weight:700;font-size:17px;letter-spacing:.2px;white-space:nowrap}
+header .logo span{color:var(--amarelo)}
+nav{display:flex;gap:4px;overflow-x:auto}
+nav button{background:transparent;border:0;color:#cfe0f5;padding:8px 14px;border-radius:6px;font-weight:500;font-size:14px;white-space:nowrap}
+nav button.ativo,nav button:hover{background:rgba(255,255,255,.14);color:#fff}
+main{max-width:1180px;margin:0 auto;padding:22px 16px 60px}
+.card{background:#fff;border:1px solid var(--borda);border-radius:10px;padding:20px}
+h2{font-size:19px;margin:0 0 4px}
+h3{font-size:15px;margin:0 0 10px}
+.sub{color:var(--cinza);font-size:13.5px;margin:0 0 16px}
+.grid2{display:grid;grid-template-columns:1.2fr 1fr;gap:18px}
+@media(max-width:860px){.grid2{grid-template-columns:1fr}}
+.drop{border:2px dashed #b8c6d8;border-radius:10px;padding:26px;text-align:center;background:#fafcff;color:var(--cinza);transition:.15s}
+.drop.over{border-color:var(--azul);background:var(--azul-claro)}
+.drop strong{color:var(--azul)}
+.btn{background:var(--azul);color:#fff;border:0;border-radius:7px;padding:10px 18px;font-weight:600;font-size:14px}
+.btn:hover{background:var(--azul2)}
+.btn:disabled{background:#9fb0c6;cursor:not-allowed}
+.btn.sec{background:#fff;color:var(--azul);border:1px solid var(--azul)}
+.btn.sec:hover{background:var(--azul-claro)}
+.btn.peq{padding:6px 12px;font-size:13px}
+.btn.verm{background:#fff;color:var(--verm);border:1px solid #e3b4ae}
+.doclist{list-style:none;padding:0;margin:14px 0 0}
+.doclist li{display:flex;align-items:center;gap:10px;padding:9px 12px;border:1px solid var(--borda);border-radius:8px;margin-bottom:8px;background:#fff}
+.doclist .nome{flex:1;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.doclist .tam{color:var(--cinza);font-size:12.5px;white-space:nowrap}
+.doclist .x{border:0;background:none;color:var(--verm);font-size:18px;line-height:1}
+.ico{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:6px;background:var(--azul-claro);color:var(--azul);font-size:11px;font-weight:700}
+label.f{display:block;font-weight:600;font-size:13px;margin:14px 0 6px}
+input[type=text],input[type=number],select,textarea{width:100%;padding:9px 11px;border:1px solid #c9d3df;border-radius:7px;font-family:inherit;font-size:14px;background:#fff;color:var(--texto)}
+textarea{resize:vertical;min-height:80px}
+.seg{display:flex;border:1px solid #c9d3df;border-radius:8px;overflow:hidden}
+.seg button{flex:1;border:0;background:#fff;padding:9px 6px;font-size:13.5px;font-weight:500;color:var(--cinza);border-right:1px solid #c9d3df}
+.seg button:last-child{border-right:0}
+.seg button.ativo{background:var(--azul);color:#fff}
+.row{display:flex;gap:12px}
+.row>*{flex:1}
+.aviso{font-size:12.5px;color:var(--cinza);margin-top:8px}
+.erro{background:var(--verm-bg);color:var(--verm);padding:10px 12px;border-radius:8px;font-size:13.5px;margin-top:12px}
+.progresso{margin-top:14px;display:none}
+.barra{height:8px;background:#e4eaf2;border-radius:4px;overflow:hidden}
+.barra div{height:100%;background:var(--azul);width:0;transition:width .3s}
+.progresso p{font-size:13px;color:var(--cinza);margin:6px 0 0}
+
+/* Resolver */
+.layout{display:grid;grid-template-columns:1fr 280px;gap:18px;align-items:start}
+@media(max-width:900px){.layout{grid-template-columns:1fr}}
+.topo-caderno{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.topo-caderno h2{flex:1;min-width:200px}
+.q-head{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;font-size:12.5px;color:var(--cinza);border-bottom:1px solid var(--borda);padding-bottom:12px;margin-bottom:14px}
+.q-num{background:var(--azul);color:#fff;font-weight:700;border-radius:6px;padding:3px 10px;font-size:13px}
+.tag{background:#eef2f7;border-radius:5px;padding:2px 8px;color:#3b4554}
+.tag.dif-facil{background:#e6f6ec;color:#1e7a44}
+.tag.dif-media{background:#fff5da;color:#8a6400}
+.tag.dif-dificil{background:#fdecea;color:#a93226}
+.enun{font-size:15.5px;margin:0 0 18px;white-space:pre-wrap}
+.alts{list-style:none;padding:0;margin:0}
+.alt{display:flex;gap:12px;align-items:flex-start;padding:10px 12px;border:1px solid transparent;border-radius:8px;cursor:pointer;transition:.12s}
+.alt:hover{background:#f4f7fb;border-color:var(--borda)}
+.alt .let{flex:0 0 30px;height:30px;border-radius:50%;border:2px solid #9fb0c6;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13.5px;color:var(--cinza)}
+.alt .txt{padding-top:4px}
+.alt.riscada .txt{text-decoration:line-through;color:#9aa3ae}
+.respondida .alt{cursor:default}
+.respondida .alt:hover{background:none;border-color:transparent}
+.alt.certa{background:var(--verde-bg)!important;border-color:#a8dcbc!important}
+.alt.certa .let{background:var(--verde);border-color:var(--verde);color:#fff}
+.alt.errada{background:var(--verm-bg)!important;border-color:#f0b6ae!important}
+.alt.errada .let{background:var(--verm);border-color:var(--verm);color:#fff}
+.ce{display:flex;gap:12px}
+.ce button{flex:0 0 150px;padding:12px;border-radius:8px;border:2px solid #c9d3df;background:#fff;font-weight:700;font-size:15px;color:var(--texto)}
+.ce button:hover{border-color:var(--azul);color:var(--azul)}
+.respondida .ce button{cursor:default}
+.respondida .ce button:hover{border-color:#c9d3df;color:var(--texto)}
+.ce button.certa{background:var(--verde);border-color:var(--verde)!important;color:#fff!important}
+.ce button.errada{background:var(--verm);border-color:var(--verm)!important;color:#fff!important}
+.feedback{margin-top:18px;border-radius:8px;padding:12px 14px;font-weight:600;display:flex;align-items:center;gap:10px}
+.feedback.ok{background:var(--verde-bg);color:var(--verde);border-left:5px solid var(--verde)}
+.feedback.nok{background:var(--verm-bg);color:var(--verm);border-left:5px solid var(--verm)}
+.feedback .big{font-size:20px}
+.feedback .gab{font-weight:500;color:var(--texto);margin-left:auto;font-size:14px}
+.menu-q{display:flex;gap:4px;margin-top:20px;border-bottom:2px solid var(--borda);flex-wrap:wrap}
+.menu-q button{border:0;background:none;padding:9px 14px;font-weight:600;font-size:13.5px;color:var(--cinza);border-bottom:3px solid transparent;margin-bottom:-2px}
+.menu-q button.ativo{color:var(--azul);border-bottom-color:var(--azul)}
+.menu-q button:disabled{color:#b6bec8;cursor:not-allowed}
+.painel{padding:14px 2px 2px;font-size:14.5px}
+.painel .bloq{color:var(--cinza);font-style:italic}
+.painel blockquote{margin:0;border-left:4px solid var(--amarelo);background:#fffaf0;padding:10px 14px;border-radius:0 6px 6px 0;white-space:pre-wrap}
+.painel .fonte{font-size:12.5px;color:var(--cinza);margin-top:8px}
+.nav-q{display:flex;justify-content:space-between;margin-top:20px;gap:10px}
+.side h3{margin-bottom:12px}
+.placar{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;text-align:center;margin-bottom:14px}
+.placar div{border-radius:8px;padding:8px 4px;background:#f4f7fb}
+.placar b{display:block;font-size:20px}
+.placar .a b{color:var(--verde)} .placar .e b{color:var(--verm)}
+.pct{font-size:13px;color:var(--cinza);text-align:center;margin-bottom:14px}
+.mapa{display:grid;grid-template-columns:repeat(auto-fill,minmax(36px,1fr));gap:6px}
+.mapa button{height:34px;border-radius:6px;border:1px solid #c9d3df;background:#fff;font-weight:600;font-size:13px;color:var(--cinza)}
+.mapa button.ok{background:var(--verde);border-color:var(--verde);color:#fff}
+.mapa button.nok{background:var(--verm);border-color:var(--verm);color:#fff}
+.mapa button.atual{outline:3px solid var(--amarelo);outline-offset:1px}
+.filtro{margin:14px 0 10px}
+.vazio{text-align:center;padding:50px 20px;color:var(--cinza)}
+.cad-list{display:grid;gap:10px}
+.cad{display:flex;align-items:center;gap:14px;padding:14px 16px;border:1px solid var(--borda);border-radius:10px;background:#fff;flex-wrap:wrap}
+.cad .info{flex:1;min-width:200px}
+.cad .info b{display:block}
+.cad .info small{color:var(--cinza)}
+.mini-barra{width:120px;height:7px;background:#eceff3;border-radius:4px;overflow:hidden;display:flex}
+.mini-barra .a{background:var(--verde)} .mini-barra .e{background:var(--verm)}
+.dica{font-size:12.5px;color:var(--cinza);margin-top:10px}
+.mais{margin-top:16px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.mais input{width:90px}
+.modal-bg{position:fixed;inset:0;background:rgba(15,25,40,.45);display:none;align-items:center;justify-content:center;z-index:50;padding:16px}
+.modal{background:#fff;border-radius:12px;max-width:560px;width:100%;padding:20px}
+.modal textarea{min-height:200px;font-family:ui-monospace,Menlo,monospace;font-size:12px}
+.modal .acoes{display:flex;gap:8px;justify-content:flex-end;margin-top:12px}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">Método <span>Camocim</span></div>
+  <nav>
+    <button data-view="novo" class="ativo">Novo caderno</button>
+    <button data-view="resolver">Resolver</button>
+    <button data-view="cadernos">Meus cadernos</button>
+  </nav>
+</header>
+
+<main>
+  <!-- NOVO CADERNO -->
+  <section id="v-novo">
+    <div class="grid2">
+      <div class="card">
+        <h2>1. Documentos-base</h2>
+        <p class="sub">As questões serão elaboradas exclusivamente a partir destes documentos.</p>
+        <div class="drop" id="drop">
+          <div style="font-size:30px">📄</div>
+          <p style="margin:6px 0"><strong>Arraste os arquivos aqui</strong> ou</p>
+          <button class="btn sec peq" id="btnEscolher">Escolher arquivos</button>
+          <input type="file" id="fileIn" multiple accept=".pdf,.docx,.txt,.md,.html,.htm,.csv" hidden>
+          <p class="aviso">PDF (com texto), DOCX, TXT, MD, HTML</p>
+        </div>
+        <details style="margin-top:12px">
+          <summary style="cursor:pointer;font-weight:600;font-size:13.5px;color:var(--azul)">Ou colar texto (lei, artigo, apostila…)</summary>
+          <input type="text" id="colaNome" placeholder="Nome do texto (ex.: RICMS-RR – Anexo IV)" style="margin-top:8px">
+          <textarea id="colaTxt" placeholder="Cole aqui o conteúdo" style="margin-top:8px"></textarea>
+          <button class="btn sec peq" id="btnColar" style="margin-top:8px">Adicionar texto</button>
+        </details>
+        <ul class="doclist" id="docList"></ul>
+        <div id="docErro"></div>
+      </div>
+
+      <div class="card">
+        <h2>2. Configurar questões</h2>
+        <p class="sub">Escolha o formato e a quantidade.</p>
+        <label class="f">Nome do caderno</label>
+        <input type="text" id="cadNome" placeholder="Ex.: ICMS-ST – Convênio 142/18">
+        <label class="f">Tipo de questão</label>
+        <div class="seg" id="segTipo">
+          <button data-v="CE" class="ativo">Certo / Errado</button>
+          <button data-v="ME">Múltipla escolha</button>
+          <button data-v="MIX">Misto</button>
+        </div>
+        <div class="row">
+          <div>
+            <label class="f">Quantidade</label>
+            <input type="number" id="qtd" min="1" max="100" value="10">
+          </div>
+          <div id="boxAlts">
+            <label class="f">Alternativas</label>
+            <select id="nAlts"><option value="5">5 (A–E)</option><option value="4">4 (A–D)</option></select>
+          </div>
+        </div>
+        <label class="f">Dificuldade</label>
+        <div class="seg" id="segDif">
+          <button data-v="facil">Fácil</button>
+          <button data-v="media" class="ativo">Média</button>
+          <button data-v="dificil">Difícil</button>
+          <button data-v="variada">Variada</button>
+        </div>
+        <label class="f">Foco / assuntos (opcional)</label>
+        <input type="text" id="foco" placeholder="Ex.: prazos, base de cálculo, MVA, penalidades">
+        <div id="boxSenha" hidden>
+          <label class="f">Senha de acesso</label>
+          <input type="password" id="senhaApp" placeholder="Senha definida no Vercel" autocomplete="off">
+        </div>
+        <div id="boxApi" hidden>
+          <label class="f">Chave da API Anthropic</label>
+          <input type="password" id="apiKey" placeholder="sk-ant-..." autocomplete="off">
+          <p class="aviso">Necessária quando o app roda fora do claude.ai (ex.: GitHub Pages). Fica salva só neste navegador. Obtenha em console.anthropic.com.</p>
+        </div>
+        <div style="margin-top:20px;display:flex;gap:10px;align-items:center">
+          <button class="btn" id="btnGerar" disabled>Gerar questões</button>
+          <span class="aviso" id="gerarInfo">Adicione ao menos um documento.</span>
+        </div>
+        <div class="progresso" id="prog"><div class="barra"><div id="progBar"></div></div><p id="progTxt"></p></div>
+        <div id="gerarErro"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- RESOLVER -->
+  <section id="v-resolver" hidden>
+    <div id="resolverVazio" class="card vazio">
+      <div style="font-size:36px">📝</div>
+      <p>Nenhum caderno aberto.<br>Crie um em <b>Novo caderno</b> ou abra um em <b>Meus cadernos</b>.</p>
+    </div>
+    <div id="resolverConteudo" hidden>
+      <div class="topo-caderno">
+        <h2 id="cadTitulo"></h2>
+        <button class="btn verm peq" id="btnZerar">Zerar respostas</button>
+      </div>
+      <div class="layout">
+        <div class="card" id="qCard"></div>
+        <aside class="card side">
+          <h3>Desempenho</h3>
+          <div class="placar">
+            <div class="a"><b id="nA">0</b><small>Acertos</small></div>
+            <div class="e"><b id="nE">0</b><small>Erros</small></div>
+            <div><b id="nR">0</b><small>Restantes</small></div>
+          </div>
+          <div class="pct" id="pct"></div>
+          <div class="filtro">
+            <select id="filtro">
+              <option value="todas">Mostrar: todas</option>
+              <option value="nao">Não resolvidas</option>
+              <option value="erradas">Erradas</option>
+              <option value="certas">Acertadas</option>
+            </select>
+          </div>
+          <div class="mapa" id="mapa"></div>
+          <div class="mais">
+            <input type="number" id="qtdMais" min="1" max="50" value="5">
+            <button class="btn sec peq" id="btnMais">+ Gerar mais</button>
+          </div>
+          <div class="progresso" id="prog2"><div class="barra"><div id="progBar2"></div></div><p id="progTxt2"></p></div>
+          <div id="maisErro"></div>
+        </aside>
+      </div>
+    </div>
+  </section>
+
+  <!-- CADERNOS -->
+  <section id="v-cadernos" hidden>
+    <div class="card">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <div style="flex:1"><h2>Meus cadernos</h2><p class="sub" style="margin:0">Salvos neste navegador.</p></div>
+        <button class="btn sec peq" id="btnImportar">Importar</button>
+      </div>
+      <div class="cad-list" id="cadList" style="margin-top:16px"></div>
+    </div>
+  </section>
+</main>
+
+<div class="modal-bg" id="modal">
+  <div class="modal">
+    <h3 id="modalTit"></h3>
+    <p class="sub" id="modalSub"></p>
+    <textarea id="modalTxt"></textarea>
+    <div class="acoes">
+      <button class="btn sec peq" id="modalFechar">Fechar</button>
+      <button class="btn peq" id="modalOk"></button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+"use strict";
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const uid = () => Math.random().toString(36).slice(2,10) + Date.now().toString(36);
+const LETRAS = "ABCDE";
+const MAX_CHARS_TOTAL = 400000;   // limite de texto lido dos documentos
+const CHUNK = 45000;              // trecho enviado por lote
+const LOTE = 8;                   // questões por chamada
+
+// ---------- armazenamento local ----------
+const store = {
+  get(k, d){ try{ const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; }catch(e){ return d; } },
+  set(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); return true; }catch(e){ return false; } }
+};
+
+let docs = [];               // {id,name,text}
+let cadernos = store.get("qd_cadernos", []);
+let atual = null;            // caderno aberto
+let idx = 0;                 // índice da questão exibida (na lista filtrada)
+let abaAtiva = "resumo";
+let sample = null;
+let opt = { tipo:"CE", dif:"media" };
+
+let apiKey = store.get("qd_apikey", "");
+try{
+  if (window.claude && typeof window.claude.use === "function")
+    window.claude.use("sample").then(s => { sample = s; atualizarBotao(); }).catch(()=>{ atualizarBotao(); });
+}catch(e){}
+// No Vercel: função de servidor /api/gerar guarda a chave da API (variável ANTHROPIC_API_KEY)
+let servidor = null;
+let senhaApp = store.get("qd_senha", "");
+try{
+  fetch("api/gerar").then(r => r.ok ? r.json() : null).then(j => { if (j && j.configured){ servidor = j; atualizarBotao(); } }).catch(()=>{});
+}catch(e){}
+// Fora do claude.ai e sem servidor (ex.: GitHub Pages) usa a chave do próprio usuário
+async function perguntar(texto, onText){
+  if (sample) return (await sample(texto, { modelTier:"default", cache:false, onText })).text;
+  if (servidor){
+    const r = await fetch("api/gerar", { method:"POST", headers:{ "content-type":"application/json", "x-app-senha": senhaApp }, body: JSON.stringify({ prompt: texto }) });
+    let j = {}; try{ j = await r.json(); }catch(e){}
+    if (r.status === 401) throw new Error("Senha de acesso incorreta.");
+    if (r.status === 429) { const e = new Error("rate"); e.code = "rate_limited"; throw e; }
+    if (!r.ok) throw new Error(j.error || ("Erro do servidor: " + r.status));
+    return j.text || "";
+  }
+  if (!apiKey) throw new Error("Informe sua chave da API Anthropic.");
+  const r = await fetch("https://api.anthropic.com/v1/messages", {
+    method:"POST",
+    headers:{ "content-type":"application/json", "x-api-key":apiKey, "anthropic-version":"2023-06-01", "anthropic-dangerous-direct-browser-access":"true" },
+    body: JSON.stringify({ model:"claude-sonnet-5-5", max_tokens:12000, messages:[{ role:"user", content:texto }] })
+  });
+  if (r.status === 401) { const e = new Error("Chave da API inválida."); e.code = "not_granted"; throw e; }
+  if (r.status === 429) { const e = new Error("rate"); e.code = "rate_limited"; throw e; }
+  if (!r.ok) throw new Error("Erro da API: " + r.status);
+  const j = await r.json();
+  return (j.content || []).map(c => c.text || "").join("");
+}
+const podeGerar = () => !!(sample || apiKey || (servidor && (!servidor.senha || senhaApp)));
+
+// ---------- navegação ----------
+document.querySelectorAll("nav button").forEach(b => b.onclick = () => mostrar(b.dataset.view));
+function mostrar(v){
+  document.querySelectorAll("nav button").forEach(b => b.classList.toggle("ativo", b.dataset.view === v));
+  ["novo","resolver","cadernos"].forEach(x => $("#v-"+x).hidden = x !== v);
+  if (v === "cadernos") renderCadernos();
+  if (v === "resolver") renderResolver();
+  window.scrollTo(0,0);
+}
+
+// ---------- segmentados ----------
+function seg(id, key, cb){
+  document.querySelectorAll(id+" button").forEach(b => b.onclick = () => {
+    document.querySelectorAll(id+" button").forEach(x => x.classList.remove("ativo"));
+    b.classList.add("ativo"); opt[key] = b.dataset.v; cb && cb();
+  });
+}
+seg("#segTipo","tipo", () => $("#boxAlts").style.visibility = opt.tipo === "CE" ? "hidden" : "visible");
+seg("#segDif","dif");
+$("#boxAlts").style.visibility = "hidden";
+
+// ---------- leitura de documentos ----------
+const drop = $("#drop");
+$("#btnEscolher").onclick = () => $("#fileIn").click();
+$("#fileIn").onchange = e => { lerArquivos([...e.target.files]); e.target.value = ""; };
+drop.addEventListener("dragover", e => { e.preventDefault(); drop.classList.add("over"); });
+drop.addEventListener("dragleave", () => drop.classList.remove("over"));
+drop.addEventListener("drop", e => { e.preventDefault(); drop.classList.remove("over"); lerArquivos([...e.dataTransfer.files]); });
+$("#btnColar").onclick = () => {
+  const t = $("#colaTxt").value.trim();
+  if (!t) return;
+  docs.push({ id: uid(), name: $("#colaNome").value.trim() || "Texto colado " + (docs.length+1), text: t });
+  $("#colaTxt").value = ""; $("#colaNome").value = "";
+  renderDocs();
+};
+
+async function lerArquivos(files){
+  $("#docErro").innerHTML = "";
+  for (const f of files){
+    const tmp = { id: uid(), name: f.name, text: null, lendo: true };
+    docs.push(tmp); renderDocs();
+    try{
+      tmp.text = (await extrair(f)).replace(/[ \t]+/g," ").replace(/\n{3,}/g,"\n\n").trim();
+      if (tmp.text.length < 30) throw new Error("não foi encontrado texto legível (PDF digitalizado como imagem?)");
+    }catch(err){
+      docs = docs.filter(d => d !== tmp);
+      $("#docErro").innerHTML += `<div class="erro">“${esc(f.name)}”: ${esc(err.message || err)}</div>`;
+    }
+    tmp.lendo = false; renderDocs();
+  }
+}
+async function extrair(f){
+  const nome = f.name.toLowerCase();
+  if (nome.endsWith(".pdf")){
+    if (!window.pdfjsLib) throw new Error("leitor de PDF indisponível");
+    const pdf = await pdfjsLib.getDocument({ data: await f.arrayBuffer() }).promise;
+    let out = [];
+    for (let p = 1; p <= pdf.numPages; p++){
+      const pg = await pdf.getPage(p);
+      const c = await pg.getTextContent();
+      let linha = "", lastY = null, txt = [];
+      for (const it of c.items){
+        const y = it.transform ? it.transform[5] : null;
+        if (lastY !== null && y !== null && Math.abs(y - lastY) > 2){ txt.push(linha); linha = ""; }
+        linha += it.str + (it.hasEOL ? "\n" : "");
+        lastY = y;
+      }
+      txt.push(linha);
+      out.push(txt.join("\n"));
+    }
+    return out.join("\n\n");
+  }
+  if (nome.endsWith(".docx")){
+    if (!window.mammoth) throw new Error("leitor de DOCX indisponível");
+    const r = await mammoth.extractRawText({ arrayBuffer: await f.arrayBuffer() });
+    return r.value;
+  }
+  if (nome.endsWith(".html") || nome.endsWith(".htm")){
+    const d = new DOMParser().parseFromString(await f.text(), "text/html");
+    return d.body ? d.body.innerText || d.body.textContent : "";
+  }
+  if (nome.endsWith(".doc")) throw new Error("formato .doc antigo não suportado — salve como .docx ou PDF");
+  return await f.text();
+}
+function renderDocs(){
+  $("#docList").innerHTML = docs.map(d => {
+    const ext = (d.name.split(".").pop() || "TXT").slice(0,4).toUpperCase();
+    const tam = d.lendo ? "lendo…" : (d.text.length/1000).toFixed(1).replace(".",",") + " mil caracteres";
+    return `<li><span class="ico">${esc(d.name.includes(".") ? ext : "TXT")}</span><span class="nome" title="${esc(d.name)}">${esc(d.name)}</span><span class="tam">${tam}</span><button class="x" data-id="${d.id}" title="Remover">×</button></li>`;
+  }).join("");
+  document.querySelectorAll(".doclist .x").forEach(b => b.onclick = () => { docs = docs.filter(d => d.id !== b.dataset.id); renderDocs(); });
+  atualizarBotao();
+}
+function atualizarBotao(){
+  const ok = docs.some(d => d.text && !d.lendo);
+  $("#boxApi").hidden = !!(sample || servidor);
+  $("#boxSenha").hidden = !(servidor && servidor.senha && !sample);
+  $("#btnGerar").disabled = !ok || !podeGerar();
+  const total = docs.reduce((s,d) => s + (d.text ? d.text.length : 0), 0);
+  $("#gerarInfo").textContent = !podeGerar() ? (servidor ? "Informe a senha de acesso." : "Informe a chave da API para gerar.") :
+    !ok ? "Adicione ao menos um documento." :
+    total > MAX_CHARS_TOTAL ? "Documentos grandes: serão usados os primeiros " + (MAX_CHARS_TOTAL/1000) + " mil caracteres." :
+    docs.length + " documento(s) pronto(s).";
+}
+
+// ---------- geração ----------
+function montarTexto(docsBase){
+  let partes = [], total = 0;
+  for (const d of docsBase){
+    if (!d.text) continue;
+    let t = d.text;
+    if (total + t.length > MAX_CHARS_TOTAL) t = t.slice(0, Math.max(0, MAX_CHARS_TOTAL - total));
+    if (!t) break;
+    partes.push({ name: d.name, text: t }); total += t.length;
+  }
+  // divide em blocos de ~CHUNK, preservando o nome do documento
+  const blocos = [];
+  for (const p of partes){
+    for (let i = 0; i < p.text.length; i += CHUNK){
+      blocos.push({ name: p.name, text: p.text.slice(i, i + CHUNK), parte: Math.floor(i/CHUNK)+1, partes: Math.ceil(p.text.length/CHUNK) });
+    }
+  }
+  // agrupa blocos pequenos para que cada lote receba até ~CHUNK caracteres
+  const grupos = []; let g = [], tam = 0;
+  for (const b of blocos){
+    if (tam + b.text.length > CHUNK && g.length){ grupos.push(g); g = []; tam = 0; }
+    g.push(b); tam += b.text.length;
+  }
+  if (g.length) grupos.push(g);
+  return grupos;
+}
+
+function prompt(grupo, n, cfg, jaFeitas){
+  const tipoTxt = cfg.tipo === "CE"
+    ? `TODAS as questões devem ser do tipo "CE" (Certo/Errado, estilo Cebraspe): uma assertiva que o candidato julga como CERTA ou ERRADA. Equilibre gabaritos C e E (cerca de metade cada). Assertivas erradas devem conter um erro sutil e verificável no texto (troca de prazo, percentual, competência, exceção, generalização indevida etc.).`
+    : cfg.tipo === "ME"
+    ? `TODAS as questões devem ser do tipo "ME" (múltipla escolha, estilo FGV/FCC) com exatamente ${cfg.nAlts} alternativas e uma única correta. Distribua a letra correta de forma variada. Distratores plausíveis, baseados em confusões reais com o texto.`
+    : `Misture os dois tipos em proporção aproximada de metade cada: "CE" (assertiva Certo/Errado, estilo Cebraspe, gabaritos C e E equilibrados) e "ME" (múltipla escolha com exatamente ${cfg.nAlts} alternativas, uma única correta, letra correta variada).`;
+  const difTxt = { facil:"fácil (literalidade do texto)", media:"média (exige compreensão e relação entre dispositivos)", dificil:"difícil (detalhes, exceções, casos práticos e combinação de regras)", variada:"variada (misture fácil, média e difícil)" }[cfg.dif];
+  const docsTxt = grupo.map(b => `<<<DOCUMENTO: ${b.name}${b.partes > 1 ? ` (parte ${b.parte} de ${b.partes})` : ""}>>>\n${b.text}\n<<<FIM>>>`).join("\n\n");
+  const evitar = jaFeitas.length ? `\n\nNÃO repita nem parafraseie estas questões já criadas:\n- ${jaFeitas.slice(-60).map(s => s.slice(0,160)).join("\n- ")}` : "";
+  return `Você é um examinador experiente de bancas de concursos públicos brasileiros. Elabore exatamente ${n} questões inéditas baseadas EXCLUSIVAMENTE no conteúdo dos documentos abaixo. Não use conhecimento externo que contradiga ou extrapole o texto.
+
+${tipoTxt}
+Dificuldade: ${difTxt}.
+${cfg.foco ? `Priorize estes assuntos: ${cfg.foco}.` : "Cubra assuntos variados ao longo de todo o texto fornecido, sem concentrar no início."}
+
+Responda SOMENTE com um array JSON válido (sem markdown, sem texto antes ou depois), no formato:
+[
+  {
+    "tipo": "CE" ou "ME",
+    "assunto": "tema curto (até 6 palavras)",
+    "dificuldade": "facil" | "media" | "dificil",
+    "enunciado": "texto da assertiva (CE) ou comando da questão (ME)",
+    "alternativas": ["texto A", "texto B", ...]   (somente em ME; sem as letras no início),
+    "gabarito": "C" ou "E" (CE)  |  "A", "B", "C", "D" ou "E" (ME),
+    "resumo": "comentário do professor em 3 a 6 frases: por que a resposta correta está certa e, se for o caso, onde está o erro da assertiva ou de cada distrator relevante",
+    "fundamento": "trecho LITERAL e curto (até 60 palavras) do documento que fundamenta o gabarito, citando artigo/item quando houver",
+    "documento": "nome do documento de onde saiu o fundamento"
+  }
+]
+
+DOCUMENTOS:
+${docsTxt}${evitar}`;
+}
+
+function parseQuestoes(txt, cfg){
+  let s = txt.trim().replace(/^```(?:json)?/i,"").replace(/```$/,"").trim();
+  const i = s.indexOf("["), j = s.lastIndexOf("]");
+  if (i < 0 || j < i) throw new Error("resposta sem JSON");
+  let arr;
+  try{ arr = JSON.parse(s.slice(i, j+1)); }
+  catch(e){
+    // tenta recuperar até o último objeto completo
+    const k = s.lastIndexOf("}", j);
+    arr = JSON.parse(s.slice(i, k+1) + "]");
+  }
+  const out = [];
+  for (const q of arr){
+    if (!q || !q.enunciado || !q.gabarito) continue;
+    let tipo = String(q.tipo || (Array.isArray(q.alternativas) && q.alternativas.length ? "ME" : "CE")).toUpperCase();
+    let gab = String(q.gabarito).trim().toUpperCase().charAt(0);
+    if (tipo === "CE"){
+      if (gab !== "C" && gab !== "E") continue;
+      out.push({ id: uid(), tipo, assunto: q.assunto||"", dificuldade: q.dificuldade||"", enunciado: q.enunciado, gabarito: gab, resumo: q.resumo||"", fundamento: q.fundamento||"", documento: q.documento||"" });
+    } else {
+      const alts = (q.alternativas||[]).map(a => String(a).replace(/^\s*\(?[A-Ea-e][\)\.\-–:]\s+/,""));
+      const gi = LETRAS.indexOf(gab);
+      if (alts.length < 2 || gi < 0 || gi >= alts.length) continue;
+      out.push({ id: uid(), tipo:"ME", assunto: q.assunto||"", dificuldade: q.dificuldade||"", enunciado: q.enunciado, alternativas: alts, gabarito: gab, resumo: q.resumo||"", fundamento: q.fundamento||"", documento: q.documento||"" });
+    }
+  }
+  return out;
+}
+
+async function gerar(cfg, docsBase, qtd, jaFeitas, ui){
+  const grupos = montarTexto(docsBase);
+  const nLotes = Math.ceil(qtd / LOTE);
+  const novas = [];
+  let tentativas = 0, lote = 0;
+  ui.show(true);
+  while (novas.length < qtd && tentativas < nLotes + 3){
+    const n = Math.min(LOTE, qtd - novas.length);
+    const grupo = grupos[(lote + (cfg.offset||0)) % grupos.length];
+    ui.set(novas.length / qtd, `Elaborando questões ${novas.length+1}–${novas.length+n} de ${qtd}…`);
+    try{
+      const txt = await perguntar(prompt(grupo, n, cfg, jaFeitas.concat(novas.map(q => q.enunciado))),
+        ({text}) => {
+          const parcial = (text.match(/"enunciado"/g) || []).length;
+          ui.set((novas.length + Math.min(parcial, n) * 0.9) / qtd, `Elaborando questões ${novas.length+1}–${novas.length+n} de ${qtd}… (${Math.min(parcial,n)}/${n} neste lote)`);
+        });
+      const qs = parseQuestoes(txt, cfg).slice(0, n);
+      novas.push(...qs);
+      ui.onBatch && ui.onBatch(qs);
+    }catch(err){
+      if (err && err.code === "not_granted") throw new Error(sample ? "Permissão para usar o Claude não concedida." : "Chave da API inválida.");
+      if (err && /chave|senha|servidor|configurada/i.test(err.message)) throw err;
+      if (err && err.code === "rate_limited") throw new Error("Limite de uso atingido. Aguarde um pouco e tente novamente." + (novas.length ? ` (${novas.length} questões foram geradas)` : ""));
+      console.warn(err);
+    }
+    tentativas++; lote++;
+  }
+  ui.set(1, `${novas.length} questões prontas.`);
+  setTimeout(() => ui.show(false), 1200);
+  if (!novas.length) throw new Error("Não foi possível gerar questões. Tente novamente.");
+  return novas;
+}
+
+function uiProg(p, bar, txt){
+  return {
+    show: v => $(p).style.display = v ? "block" : "none",
+    set: (f, t) => { $(bar).style.width = Math.round(Math.min(1,f)*100) + "%"; $(txt).textContent = t; }
+  };
+}
+
+$("#btnGerar").onclick = async () => {
+  const qtd = Math.max(1, Math.min(100, parseInt($("#qtd").value) || 10));
+  const cfg = { tipo: opt.tipo, dif: opt.dif, nAlts: parseInt($("#nAlts").value), foco: $("#foco").value.trim() };
+  const base = docs.filter(d => d.text);
+  $("#gerarErro").innerHTML = "";
+  $("#btnGerar").disabled = true;
+  const cad = {
+    id: uid(),
+    nome: $("#cadNome").value.trim() || base.map(d => d.name.replace(/\.[^.]+$/,"")).join(", ").slice(0,80),
+    criado: Date.now(), cfg, docs: base.map(d => ({ name: d.name, text: d.text })),
+    questoes: [], respostas: {}
+  };
+  let primeiroLote = true;
+  const ui = uiProg("#prog","#progBar","#progTxt");
+  ui.onBatch = qs => {
+    if (!qs.length) return;
+    cad.questoes.push(...qs);
+    if (primeiroLote){
+      primeiroLote = false;
+      cadernos.unshift(cad); atual = cad; idx = 0; abaAtiva = "resumo";
+    }
+    salvar();
+  };
+  try{
+    await gerar(cfg, base, qtd, [], ui);
+    mostrar("resolver");
+  }catch(err){
+    $("#gerarErro").innerHTML = `<div class="erro">${esc(err.message)}</div>`;
+    if (cad.questoes.length) mostrar("resolver");
+  }
+  atualizarBotao();
+};
+
+$("#btnMais").onclick = async () => {
+  if (!atual || !podeGerar()) return;
+  const qtd = Math.max(1, Math.min(50, parseInt($("#qtdMais").value) || 5));
+  $("#btnMais").disabled = true; $("#maisErro").innerHTML = "";
+  const ui = uiProg("#prog2","#progBar2","#progTxt2");
+  ui.onBatch = qs => { atual.questoes.push(...qs); salvar(); renderResolver(); };
+  try{
+    await gerar({ ...atual.cfg, offset: Math.floor(atual.questoes.length / LOTE) }, atual.docs, qtd, atual.questoes.map(q => q.enunciado), ui);
+  }catch(err){ $("#maisErro").innerHTML = `<div class="erro">${esc(err.message)}</div>`; }
+  $("#btnMais").disabled = false;
+};
+
+function salvar(){
+  if (!store.set("qd_cadernos", cadernos)){
+    // se exceder a cota, guarda sem o texto dos documentos
+    store.set("qd_cadernos", cadernos.map(c => ({ ...c, docs: c.docs.map(d => ({ name: d.name, text: d.text.slice(0, 60000) })) })));
+  }
+}
+
+// ---------- resolver ----------
+function listaFiltrada(){
+  if (!atual) return [];
+  const f = $("#filtro").value, r = atual.respostas;
+  return atual.questoes.filter(q => f === "todas" ? true : f === "nao" ? !r[q.id] : f === "erradas" ? (r[q.id] && !r[q.id].ok) : (r[q.id] && r[q.id].ok));
+}
+$("#filtro").onchange = () => { idx = 0; renderResolver(); };
+
+function renderResolver(){
+  $("#resolverVazio").hidden = !!atual;
+  $("#resolverConteudo").hidden = !atual;
+  $("#btnMais").disabled = !podeGerar();
+  if (!atual) return;
+  $("#cadTitulo").textContent = atual.nome;
+  const lista = listaFiltrada();
+  if (idx >= lista.length) idx = Math.max(0, lista.length - 1);
+  renderPlacar(lista);
+  const q = lista[idx];
+  if (!q){ $("#qCard").innerHTML = `<div class="vazio">Nenhuma questão neste filtro.</div>`; return; }
+  const resp = atual.respostas[q.id];
+  const nGeral = atual.questoes.indexOf(q) + 1;
+  const difMap = { facil:"Fácil", media:"Média", dificil:"Difícil" };
+  let corpo = "";
+  if (q.tipo === "CE"){
+    corpo = `<div class="ce">${["C","E"].map(v => {
+      let cl = "";
+      if (resp){ if (v === q.gabarito) cl = "certa"; else if (v === resp.escolha) cl = "errada"; }
+      return `<button data-v="${v}" class="${cl}">${v === "C" ? "Certo" : "Errado"}</button>`;
+    }).join("")}</div>`;
+  } else {
+    corpo = `<ul class="alts">${q.alternativas.map((a,i) => {
+      const L = LETRAS[i]; let cl = "";
+      if (resp){ if (L === q.gabarito) cl = "certa"; else if (L === resp.escolha) cl = "errada"; }
+      else if (q.riscadas && q.riscadas.includes(L)) cl = "riscada";
+      return `<li class="alt ${cl}" data-v="${L}" title="Clique para responder · botão direito para riscar"><span class="let">${L}</span><span class="txt">${esc(a)}</span></li>`;
+    }).join("")}</ul>`;
+  }
+  const fb = resp ? `<div class="feedback ${resp.ok ? "ok" : "nok"}"><span class="big">${resp.ok ? "✓" : "✗"}</span>${resp.ok ? "Parabéns! Você acertou." : "Você errou."}<span class="gab">Gabarito: <b>${q.tipo === "CE" ? (q.gabarito === "C" ? "Certo" : "Errado") : q.gabarito}</b></span></div>` : "";
+  const bloq = !resp;
+  const painel = abaAtiva === "resumo"
+    ? (bloq ? `<p class="bloq">Responda a questão para ver o resumo da resposta correta.</p>` : `<div>${esc(q.resumo).replace(/\n/g,"<br>")}</div>`)
+    : (bloq ? `<p class="bloq">Responda a questão para ver o fundamento no documento.</p>` : (q.fundamento ? `<blockquote>${esc(q.fundamento)}</blockquote>` : `<p class="bloq">Sem trecho registrado.</p>`) + (q.documento ? `<div class="fonte">Fonte: ${esc(q.documento)}</div>` : ""));
+  $("#qCard").innerHTML = `
+    <div class="q-head">
+      <span class="q-num">Questão ${nGeral}</span>
+      <span class="tag">${q.tipo === "CE" ? "Certo / Errado" : "Múltipla escolha"}</span>
+      ${q.dificuldade && difMap[q.dificuldade] ? `<span class="tag dif-${q.dificuldade}">${difMap[q.dificuldade]}</span>` : ""}
+      ${q.assunto ? `<span>Assunto: <b>${esc(q.assunto)}</b></span>` : ""}
+      ${q.documento ? `<span>Fonte: ${esc(q.documento)}</span>` : ""}
+    </div>
+    ${q.tipo === "CE" ? `<p class="aviso" style="margin:-4px 0 8px">Julgue o item a seguir.</p>` : ""}
+    <p class="enun">${esc(q.enunciado)}</p>
+    <div class="${resp ? "respondida" : ""}" id="opcoes">${corpo}</div>
+    ${fb}
+    <div class="menu-q">
+      <button data-aba="resumo" class="${abaAtiva === "resumo" ? "ativo" : ""}">📘 Resumo da resposta</button>
+      <button data-aba="fund" class="${abaAtiva === "fund" ? "ativo" : ""}">📄 Fundamento no documento</button>
+      ${resp ? `<button data-acao="refazer" style="margin-left:auto">↺ Refazer</button>` : ""}
+    </div>
+    <div class="painel">${painel}</div>
+    <div class="nav-q">
+      <button class="btn sec" id="ant" ${idx === 0 ? "disabled" : ""}>← Anterior</button>
+      <span class="aviso" style="align-self:center">${idx+1} de ${lista.length}</span>
+      <button class="btn" id="prox" ${idx >= lista.length-1 ? "disabled" : ""}>Próxima →</button>
+    </div>`;
+  if (!resp){
+    document.querySelectorAll("#opcoes [data-v]").forEach(el => {
+      el.onclick = () => responder(q, el.dataset.v);
+      if (q.tipo === "ME") el.oncontextmenu = e => {
+        e.preventDefault();
+        q.riscadas = q.riscadas || [];
+        const L = el.dataset.v;
+        q.riscadas = q.riscadas.includes(L) ? q.riscadas.filter(x => x !== L) : q.riscadas.concat(L);
+        salvar(); renderResolver();
+      };
+    });
+  }
+  document.querySelectorAll(".menu-q [data-aba]").forEach(b => b.onclick = () => { abaAtiva = b.dataset.aba; renderResolver(); });
+  const rf = document.querySelector('.menu-q [data-acao="refazer"]');
+  if (rf) rf.onclick = () => { delete atual.respostas[q.id]; q.riscadas = []; salvar(); renderResolver(); };
+  $("#ant").onclick = () => { idx--; renderResolver(); };
+  $("#prox").onclick = () => { idx++; renderResolver(); };
+}
+
+function responder(q, v){
+  atual.respostas[q.id] = { escolha: v, ok: v === q.gabarito, em: Date.now() };
+  abaAtiva = "resumo";
+  salvar();
+  // se o filtro for "não resolvidas", manter a questão visível até avançar
+  const f = $("#filtro").value;
+  if (f !== "todas"){ $("#filtro").value = "todas"; idx = atual.questoes.indexOf(q); }
+  renderResolver();
+}
+
+function renderPlacar(lista){
+  const r = atual.respostas, tot = atual.questoes.length;
+  const a = atual.questoes.filter(q => r[q.id] && r[q.id].ok).length;
+  const e = atual.questoes.filter(q => r[q.id] && !r[q.id].ok).length;
+  $("#nA").textContent = a; $("#nE").textContent = e; $("#nR").textContent = tot - a - e;
+  $("#pct").textContent = (a+e) ? `Aproveitamento: ${Math.round(a/(a+e)*100)}% · ${tot} questões` : `${tot} questões no caderno`;
+  const atualQ = lista[idx];
+  $("#mapa").innerHTML = lista.map((q,i) => {
+    const s = r[q.id] ? (r[q.id].ok ? "ok" : "nok") : "";
+    return `<button class="${s} ${q === atualQ ? "atual" : ""}" data-i="${i}">${atual.questoes.indexOf(q)+1}</button>`;
+  }).join("");
+  document.querySelectorAll("#mapa button").forEach(b => b.onclick = () => { idx = +b.dataset.i; renderResolver(); });
+}
+
+$("#btnZerar").onclick = () => {
+  if (!atual) return;
+  const b = $("#btnZerar");
+  if (b.dataset.conf !== "1"){ b.dataset.conf = "1"; b.textContent = "Confirmar: zerar?"; setTimeout(() => { b.dataset.conf = ""; b.textContent = "Zerar respostas"; }, 3000); return; }
+  b.dataset.conf = ""; b.textContent = "Zerar respostas";
+  atual.respostas = {}; atual.questoes.forEach(q => q.riscadas = []); idx = 0; salvar(); renderResolver();
+};
+
+document.addEventListener("keydown", e => {
+  if ($("#v-resolver").hidden || !atual || /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) return;
+  const lista = listaFiltrada(), q = lista[idx];
+  if (e.key === "ArrowRight" && idx < lista.length-1){ idx++; renderResolver(); }
+  else if (e.key === "ArrowLeft" && idx > 0){ idx--; renderResolver(); }
+  else if (q && !atual.respostas[q.id]){
+    const k = e.key.toUpperCase();
+    if (q.tipo === "CE" && (k === "C" || k === "E")) responder(q, k);
+    if (q.tipo === "ME" && LETRAS.slice(0, q.alternativas.length).includes(k)) responder(q, k);
+  }
+});
+
+// ---------- cadernos ----------
+function renderCadernos(){
+  if (!cadernos.length){ $("#cadList").innerHTML = `<div class="vazio">Nenhum caderno ainda.</div>`; return; }
+  $("#cadList").innerHTML = cadernos.map(c => {
+    const tot = c.questoes.length, a = c.questoes.filter(q => c.respostas[q.id] && c.respostas[q.id].ok).length, e = c.questoes.filter(q => c.respostas[q.id] && !c.respostas[q.id].ok).length;
+    const tipo = { CE:"Certo/Errado", ME:"Múltipla escolha", MIX:"Misto" }[c.cfg.tipo];
+    return `<div class="cad">
+      <div class="info"><b>${esc(c.nome)}</b><small>${tot} questões · ${tipo} · ${new Date(c.criado).toLocaleDateString("pt-BR")} · ${c.docs.length} doc(s)</small></div>
+      <div><div class="mini-barra"><div class="a" style="width:${tot ? a/tot*100 : 0}%"></div><div class="e" style="width:${tot ? e/tot*100 : 0}%"></div></div><small style="color:var(--cinza)">${a} ✓ · ${e} ✗</small></div>
+      <button class="btn peq" data-abrir="${c.id}">Resolver</button>
+      <button class="btn sec peq" data-exp="${c.id}">Exportar</button>
+      <button class="btn verm peq" data-del="${c.id}">Excluir</button>
+    </div>`;
+  }).join("");
+  document.querySelectorAll("[data-abrir]").forEach(b => b.onclick = () => { atual = cadernos.find(c => c.id === b.dataset.abrir); idx = 0; $("#filtro").value = "todas"; mostrar("resolver"); });
+  document.querySelectorAll("[data-del]").forEach(b => b.onclick = () => {
+    if (b.dataset.conf !== "1"){ b.dataset.conf = "1"; b.textContent = "Confirmar?"; return; }
+    cadernos = cadernos.filter(c => c.id !== b.dataset.del);
+    if (atual && atual.id === b.dataset.del) atual = null;
+    salvar(); renderCadernos();
+  });
+  document.querySelectorAll("[data-exp]").forEach(b => b.onclick = () => {
+    const c = cadernos.find(x => x.id === b.dataset.exp);
+    abrirModal("Exportar caderno", "Copie o conteúdo abaixo e guarde-o; use Importar para restaurar em outro navegador.", JSON.stringify({ nome:c.nome, cfg:c.cfg, criado:c.criado, docs:c.docs, questoes:c.questoes }), "Copiar", async () => {
+      try{ await navigator.clipboard.writeText($("#modalTxt").value); $("#modalOk").textContent = "Copiado ✓"; }catch(e){ $("#modalTxt").select(); $("#modalOk").textContent = "Use Ctrl+C"; }
+    });
+  });
+}
+$("#btnImportar").onclick = () => abrirModal("Importar caderno", "Cole aqui o conteúdo exportado.", "", "Importar", () => {
+  try{
+    const o = JSON.parse($("#modalTxt").value);
+    if (!Array.isArray(o.questoes)) throw 0;
+    cadernos.unshift({ id: uid(), nome: o.nome || "Caderno importado", criado: o.criado || Date.now(), cfg: o.cfg || { tipo:"MIX" }, docs: o.docs || [], questoes: o.questoes, respostas: {} });
+    salvar(); fecharModal(); renderCadernos();
+  }catch(e){ $("#modalSub").textContent = "Conteúdo inválido."; }
+});
+function abrirModal(t, s, v, ok, fn){
+  $("#modalTit").textContent = t; $("#modalSub").textContent = s; $("#modalTxt").value = v; $("#modalOk").textContent = ok;
+  $("#modalOk").onclick = fn; $("#modal").style.display = "flex";
+}
+function fecharModal(){ $("#modal").style.display = "none"; }
+$("#modalFechar").onclick = fecharModal;
+
+$("#apiKey").value = apiKey;
+$("#senhaApp").value = senhaApp;
+$("#senhaApp").oninput = e => { senhaApp = e.target.value; store.set("qd_senha", senhaApp); atualizarBotao(); };
+$("#apiKey").oninput = e => { apiKey = e.target.value.trim(); store.set("qd_apikey", apiKey); atualizarBotao(); };
+renderDocs();
+})();
+</script>
+</body>
+</html>
