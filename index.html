@@ -121,6 +121,10 @@ textarea{width:100%;resize:vertical}
 .tabs button.on{color:var(--ink);border-bottom-color:var(--mark)}
 .pane{padding:14px 2px 2px;white-space:pre-wrap}
 .pane.law{font-family:var(--law);font-size:15px}
+.pane.np{white-space:normal}
+.fc{padding:10px 0;border-bottom:1px solid var(--line)}
+.fc:first-child{padding-top:0}
+.fct{white-space:pre-wrap;margin-top:4px}
 .qfoot{display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between;align-items:center;padding:12px 18px;border-top:1px solid var(--line)}
 /* Simulado */
 .sheet{display:grid;grid-template-columns:repeat(auto-fill,minmax(38px,1fr));gap:6px}
@@ -517,6 +521,21 @@ function enunHTML(q) {
 /* opts: {num, total, onAnswer(ok), simulado:{resp, set(resp)}, reveal} */
 function questionCard(host, q, opts = {}) {
   let sel = opts.simulado ? opts.simulado.resp : null; let answered = !!opts.reveal; let cut = new Set(); let tab = "comentario";
+  const forum = { count: null, list: null, loading: false, err: "" };
+  sb.from("comentarios").select("id", { count: "exact", head: true }).eq("questao_id", q.id).then(({ count }) => { forum.count = count || 0; if (answered && tab !== "forum" && tab !== "nota") draw(); }, () => {});
+  async function loadForum() {
+    forum.loading = true; forum.err = ""; draw();
+    const { data, error } = await sb.from("comentarios").select("id,user_id,autor_nome,autor_admin,texto,criado_em").eq("questao_id", q.id).order("criado_em", { ascending: true }).limit(300);
+    forum.loading = false; if (error) forum.err = error.message; else { forum.list = data || []; forum.count = forum.list.length; } draw();
+  }
+  function forumHTML() {
+    if (forum.loading) return `<span class="muted">Carregando o fórum…</span>`;
+    if (forum.err) return `Não consegui carregar o fórum: ${esc(forum.err)}`;
+    const itens = (forum.list || []).map(c => `<div class="fc"><div class="row small"><b>${esc(c.autor_nome || "Aluno")}</b>${c.autor_admin ? `<span class="chip okc">Professor</span>` : ""}<span class="muted">${new Date(c.criado_em).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}</span>${c.user_id === ME.id || isAdmin() ? `<button class="btn ghost sm danger" data-delc="${c.id}">Excluir</button>` : ""}</div><div class="fct">${esc(c.texto)}</div></div>`).join("");
+    return `<div>${itens || `<p class="muted small">Ninguém comentou ainda. Seja o primeiro a explicar como resolveu ou a tirar uma dúvida.</p>`}
+      <div class="stack" style="margin-top:12px"><label class="f" for="fc-${q.id}">Seu comentário<textarea id="fc-${q.id}" rows="3" maxlength="2000" placeholder="Escreva sua dúvida, um macete ou como você resolveu."></textarea></label>
+      <div class="row" style="justify-content:space-between"><span class="small muted">Seja respeitoso. O administrador pode remover comentários.</span><button class="btn sm pri" data-act="postc">Publicar</button></div></div></div>`;
+  }
   function draw() {
     const prev = S.answers[q.id] || []; const okc = prev.filter(a => a.ok).length;
     const gab = q.gabarito; const right = String(sel) === String(gab);
@@ -524,8 +543,8 @@ function questionCard(host, q, opts = {}) {
       ? `<div class="ce">${["C", "E"].map(v => `<button class="alt ${sel === v ? "sel" : ""} ${answered && v === gab ? "right" : ""} ${answered && sel === v && v !== gab ? "wrong" : ""}" data-v="${v}" ${answered ? "disabled" : ""}><span class="bub">${v}</span><span class="txt">${v === "C" ? "Certo" : "Errado"}</span></button>`).join("")}</div>`
       : `<div class="alts">${q.alternativas.map((a, i) => `<div class="alt ${String(sel) === String(i) ? "sel" : ""} ${cut.has(i) ? "cut" : ""} ${answered && i === +gab ? "right" : ""} ${answered && String(sel) === String(i) && i !== +gab ? "wrong" : ""}" data-v="${i}" role="button" tabindex="0" aria-label="Alternativa ${LETRAS[i]}"><span class="bub">${LETRAS[i]}</span><span class="txt">${esc(a)}</span>${answered ? "<span></span>" : `<button class="scis" data-cut="${i}" title="Riscar alternativa" aria-label="Riscar alternativa ${LETRAS[i]}">✂</button>`}</div>`).join("")}</div>`;
     const resHTML = answered ? `<div class="res ${right ? "ok" : "bad"}">${sel === null || sel === undefined ? "Em branco." : right ? "Você acertou!" : "Você errou."} Gabarito: ${q.tipo === "CE" ? (gab === "C" ? "Certo" : "Errado") : LETRAS[+gab]}</div>
-      <div class="tabs" role="tablist">${[["comentario", "Comentário"], ["fundamento", "Fundamento legal"], ["nota", "Minhas anotações"], ["hist", "Histórico"]].map(([k, l]) => `<button role="tab" class="${tab === k ? "on" : ""}" data-tab="${k}">${l}</button>`).join("")}</div>
-      <div class="pane ${tab === "fundamento" ? "law" : ""}">${tab === "comentario" ? esc(q.comentario || "Sem comentário cadastrado.") : tab === "fundamento" ? esc(q.fundamento || "Sem fundamento cadastrado.") : tab === "nota" ? `<textarea id="nota-${q.id}" rows="4" placeholder="Escreva um macete, um resumo ou o motivo do erro.">${esc(S.notes[q.id] || "")}</textarea><div class="row" style="margin-top:8px"><button class="btn sm pri" data-act="savenote">Salvar anotação</button></div>` : histHTML()}</div>` : "";
+      <div class="tabs" role="tablist">${[["comentario", "Comentário"], ["fundamento", "Fundamento legal"], ["forum", "Fórum" + (forum.count ? ` (${forum.count})` : "")], ["nota", "Minhas anotações"], ["hist", "Histórico"]].map(([k, l]) => `<button role="tab" class="${tab === k ? "on" : ""}" data-tab="${k}">${l}</button>`).join("")}</div>
+      <div class="pane ${tab === "fundamento" ? "law" : ""} ${tab === "forum" ? "np" : ""}">${tab === "forum" ? forumHTML() : tab === "comentario" ? esc(q.comentario || "Sem comentário cadastrado.") : tab === "fundamento" ? esc(q.fundamento || "Sem fundamento cadastrado.") : tab === "nota" ? `<textarea id="nota-${q.id}" rows="4" placeholder="Escreva um macete, um resumo ou o motivo do erro.">${esc(S.notes[q.id] || "")}</textarea><div class="row" style="margin-top:8px"><button class="btn sm pri" data-act="savenote">Salvar anotação</button></div>` : histHTML()}</div>` : "";
     host.innerHTML = `<article class="q">
       <div class="meta">${opts.num ? `<span><b>Questão ${opts.num}${opts.total ? " de " + opts.total : ""}</b></span>` : ""}${metaLine(q)}</div>
       <div class="body"><div class="enun">${enunHTML(q)}</div>${optsHTML}${resHTML}</div>
@@ -545,12 +564,23 @@ function questionCard(host, q, opts = {}) {
     if (cutB) { e.stopPropagation(); const i = +cutB.dataset.cut; cut.has(i) ? cut.delete(i) : cut.add(i); draw(); return; }
     const alt = e.target.closest(".alt[data-v]");
     if (alt && !answered) { const v = q.tipo === "CE" ? alt.dataset.v : +alt.dataset.v; sel = String(sel) === String(v) && opts.simulado ? null : v; if (opts.simulado) opts.simulado.set(sel); draw(); return; }
-    const t = e.target.closest("[data-tab]"); if (t) { tab = t.dataset.tab; draw(); return; }
+    const t = e.target.closest("[data-tab]"); if (t) { tab = t.dataset.tab; if (tab === "forum" && !forum.list && !forum.loading) loadForum(); else draw(); return; }
+    const dc = e.target.closest("[data-delc]");
+    if (dc) { if (!dc.dataset.c) { dc.dataset.c = 1; dc.textContent = "Confirmar exclusão"; return; } dc.disabled = true; sb.from("comentarios").delete().eq("id", dc.dataset.delc).then(({ error }) => { if (error) { toast("Não consegui excluir: " + error.message); dc.disabled = false; return; } forum.list = forum.list.filter(c => c.id !== dc.dataset.delc); forum.count = forum.list.length; draw(); toast("Comentário excluído."); }); return; }
     const a = e.target.closest("[data-act]"); if (!a) return;
     const act = a.dataset.act;
     if (act === "answer" && sel !== null && sel !== undefined) { const ok = registrar(q, sel); answered = true; draw(); renderNav(); opts.onAnswer && opts.onAnswer(ok); }
     if (act === "again") { answered = false; sel = null; cut.clear(); draw(); }
     if (act === "flag") { if (S.flags[q.id]) delete S.flags[q.id]; else S.flags[q.id] = true; save(); draw(); }
+    if (act === "postc") {
+      const ta = $("#fc-" + q.id); const texto = ta.value.trim();
+      if (texto.length < 2) { toast("Escreva o comentário antes de publicar."); return; }
+      a.disabled = true;
+      sb.from("comentarios").insert({ questao_id: q.id, texto }).select("id,user_id,autor_nome,autor_admin,texto,criado_em").single().then(({ data, error }) => {
+        if (error) { a.disabled = false; toast("Não consegui publicar: " + error.message); return; }
+        forum.list = [...(forum.list || []), data]; forum.count = forum.list.length; draw(); toast("Comentário publicado.");
+      });
+    }
     if (act === "savenote") { S.notes[q.id] = $("#nota-" + q.id).value; save(); toast("Anotação salva."); }
     if (act === "edit") editQuestion(q, () => draw());
   };
@@ -1013,10 +1043,12 @@ async function vAdmin(m) {
   if (!isAdmin()) { location.hash = "inicio"; return; }
   m.innerHTML = `<div class="head"><div><h1>Administração</h1><p>Libere alunos, controle a validade do acesso e acompanhe o uso da IA.</p></div></div><div class="card empty">Carregando…</div>`;
   const desde = new Date(Date.now() - 30 * DAY).toISOString();
-  const [perfis, usos] = await Promise.all([
+  const [perfis, usos, comRes] = await Promise.all([
     fetchAll("profiles", "id,email,nome,status,role,validade,observacao,criado_em"),
-    sb.from("geracoes").select("qtd,criado_em,user_id").gte("criado_em", desde).limit(10000)
-  ]).catch(e => { m.innerHTML = `<div class="card empty">Não consegui carregar: ${esc(e.message)}</div>`; return [null, null]; });
+    sb.from("geracoes").select("qtd,criado_em,user_id").gte("criado_em", desde).limit(10000),
+    sb.from("comentarios").select("id,questao_id,autor_nome,autor_admin,texto,criado_em").order("criado_em", { ascending: false }).limit(30)
+  ]).catch(e => { m.innerHTML = `<div class="card empty">Não consegui carregar: ${esc(e.message)}</div>`; return [null, null, null]; });
+  let coments = (comRes && comRes.data) || [];
   if (!perfis) return;
   const uso = (usos.data || []).reduce((a, b) => a + b.qtd, 0);
   const usoPor = {}; (usos.data || []).forEach(u => usoPor[u.user_id] = (usoPor[u.user_id] || 0) + u.qtd);
@@ -1042,7 +1074,11 @@ async function vAdmin(m) {
         <td>${p.role === "admin" ? "" : `<div class="row"><button class="btn sm pri" data-lib="30">Liberar 30 dias</button><button class="btn sm" data-lib="365">1 ano</button><button class="btn sm" data-lib="0">Sem prazo</button>${p.status === "bloqueado" ? "" : `<button class="btn sm ghost danger" data-blk>Bloquear</button>`}</div>`}</td></tr>`).join("")}
       </tbody></table></div>` : `<div class="empty">Nenhum aluno nesta lista.</div>`}
       <p class="small muted" style="margin-top:10px">Quem se cadastra fica aguardando liberação. Ao confirmar o pagamento, libere o aluno pelo prazo contratado. Para mudar a data, edite o campo "Acesso até".</p>
+    </div>
+    <div class="card" style="margin-top:14px"><h2 style="margin-bottom:10px">Fórum: últimos comentários</h2>
+      ${coments.length ? `<div class="list">${coments.map(c => { const qq = qById(c.questao_id); return `<div><div class="row small" style="justify-content:space-between"><span><b>${esc(c.autor_nome || "Aluno")}</b> <span class="muted">· ${new Date(c.criado_em).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })} · ${esc(qq ? (qq.disciplina || "") + " — " + qq.enunciado.replace(/\s+/g, " ").slice(0, 70) + "…" : "questão excluída")}</span></span><button class="btn ghost sm danger" data-modc="${c.id}">Excluir</button></div><div class="fct">${esc(c.texto)}</div></div>`; }).join("")}</div>` : `<div class="empty">Nenhum comentário ainda. Para responder um aluno, abra a questão em Questões e escreva na aba Fórum: seu comentário aparece com a etiqueta Professor.</div>`}
     </div>`;
+    m.querySelectorAll("[data-modc]").forEach(b => b.onclick = async () => { if (!b.dataset.c) { b.dataset.c = 1; b.textContent = "Confirmar exclusão"; return; } const { error } = await sb.from("comentarios").delete().eq("id", b.dataset.modc); if (error) { toast("Não consegui excluir: " + error.message); return; } coments = coments.filter(c => c.id !== b.dataset.modc); toast("Comentário excluído."); draw(); });
     $("#ad-f").onchange = e => { ADM.filtro = e.target.value; draw(); };
     $("#ad-q").oninput = e => { ADM.busca = e.target.value; clearTimeout(ADM.t); ADM.t = setTimeout(() => { draw(); const q = $("#ad-q"); q.focus(); q.setSelectionRange(q.value.length, q.value.length); }, 300); };
     m.querySelectorAll("tr[data-id]").forEach(tr => {
