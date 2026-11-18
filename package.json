@@ -1,0 +1,6 @@
+{
+  "name": "metodo-camocim",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=20" }
+}
