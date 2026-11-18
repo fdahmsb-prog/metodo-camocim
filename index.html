@@ -125,6 +125,11 @@ textarea{width:100%;resize:vertical}
 .fc{padding:10px 0;border-bottom:1px solid var(--line)}
 .fc:first-child{padding-top:0}
 .fct{white-space:pre-wrap;margin-top:4px}
+.qt{margin-left:auto;font-variant-numeric:tabular-nums;font-weight:600;color:var(--ink)}
+.qt.over{color:var(--bad)}
+.timerbar{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;padding:10px 16px;position:sticky;top:8px;z-index:5;margin-top:14px}
+.timerbar .big{font:800 22px var(--display);font-variant-numeric:tabular-nums}
+.pausado{filter:blur(6px);pointer-events:none;user-select:none}
 .qfoot{display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between;align-items:center;padding:12px 18px;border-top:1px solid var(--line)}
 /* Simulado */
 .sheet{display:grid;grid-template-columns:repeat(auto-fill,minmax(38px,1fr));gap:6px}
@@ -237,7 +242,7 @@ const CFG = { ...CFG_PADRAO, ...Object.fromEntries(Object.entries(window.CAMOCIM
 let sb = null, ME = null, PROFILE = null;
 const isAdmin = () => PROFILE && PROFILE.role === "admin";
 const canEdit = q => isAdmin() || (ME && q.owner === ME.id);
-const DEFAULT_SETTINGS = { nome: "", meta: 20, penal: true, tema: "auto" };
+const DEFAULT_SETTINGS = { nome: "", meta: 20, penal: true, tema: "auto", alvo: 3 };
 let S = { questions: [], docs: [], answers: {}, review: {}, flags: {}, notes: {}, simulados: [], settings: { ...DEFAULT_SETTINGS } };
 let saveTimer = null;
 function save() {
@@ -453,11 +458,21 @@ async function extractText(file, onProg) {
   return await file.text();
 }
 
+/* ---------------- Cronômetro ---------------- */
+const fmtT = ms => { const s = Math.max(0, Math.floor((ms || 0) / 1000)); const h = Math.floor(s / 3600), mi = Math.floor(s / 60) % 60, se = s % 60; return (h ? h + ":" + String(mi).padStart(2, "0") : String(mi)) + ":" + String(se).padStart(2, "0"); };
+const alvoMs = () => Math.max(0.5, +S.settings.alvo || 3) * 60000;
+function novoRelogio() { return { acc: 0, since: Date.now(), running: true, resolvidas: 0, tempoResp: 0, now() { return this.acc + (this.running ? Date.now() - this.since : 0); }, pausar() { if (this.running) { this.acc += Date.now() - this.since; this.running = false; } }, continuar() { if (!this.running) { this.since = Date.now(); this.running = true; } } }; }
+// atualiza, a cada segundo, todos os cronômetros visíveis sem redesenhar a tela
+setInterval(() => {
+  document.querySelectorAll("[data-qt]").forEach(el => { if (!el._clock) return; const ms = el._clock() - el._t0; el.textContent = "⏱ " + fmtT(ms); el.classList.toggle("over", ms > alvoMs()); });
+  const pc = document.getElementById("pc-t"); if (pc && practice.relogio) pc.textContent = fmtT(practice.relogio.now());
+}, 1000);
+
 /* ---------------- Respostas, revisão e estatística ---------------- */
 const INTERVALOS = [0, 1, 3, 7, 15, 30];
-function registrar(q, resp) {
+function registrar(q, resp, ms) {
   const ok = String(resp) === String(q.gabarito);
-  (S.answers[q.id] = S.answers[q.id] || []).push({ t: Date.now(), ok, r: resp });
+  (S.answers[q.id] = S.answers[q.id] || []).push(ms ? { t: Date.now(), ok, r: resp, d: Math.round(ms) } : { t: Date.now(), ok, r: resp });
   const rv = S.review[q.id];
   if (!ok) S.review[q.id] = { box: 1, due: Date.now() };
   else if (rv) { rv.box++; if (rv.box >= INTERVALOS.length) delete S.review[q.id]; else rv.due = Date.now() + INTERVALOS[rv.box] * DAY; }
@@ -521,6 +536,7 @@ function enunHTML(q) {
 /* opts: {num, total, onAnswer(ok), simulado:{resp, set(resp)}, reveal} */
 function questionCard(host, q, opts = {}) {
   let sel = opts.simulado ? opts.simulado.resp : null; let answered = !!opts.reveal; let cut = new Set(); let tab = "comentario";
+  const clock = opts.clock || (() => Date.now()); let t0 = clock(); let tFinal = null; const comTimer = !opts.simulado;
   const forum = { count: null, list: null, loading: false, err: "" };
   sb.from("comentarios").select("id", { count: "exact", head: true }).eq("questao_id", q.id).then(({ count }) => { forum.count = count || 0; if (answered && tab !== "forum" && tab !== "nota") draw(); }, () => {});
   async function loadForum() {
@@ -546,7 +562,7 @@ function questionCard(host, q, opts = {}) {
       <div class="tabs" role="tablist">${[["comentario", "Comentário"], ["fundamento", "Fundamento legal"], ["forum", "Fórum" + (forum.count ? ` (${forum.count})` : "")], ["nota", "Minhas anotações"], ["hist", "Histórico"]].map(([k, l]) => `<button role="tab" class="${tab === k ? "on" : ""}" data-tab="${k}">${l}</button>`).join("")}</div>
       <div class="pane ${tab === "fundamento" ? "law" : ""} ${tab === "forum" ? "np" : ""}">${tab === "forum" ? forumHTML() : tab === "comentario" ? esc(q.comentario || "Sem comentário cadastrado.") : tab === "fundamento" ? esc(q.fundamento || "Sem fundamento cadastrado.") : tab === "nota" ? `<textarea id="nota-${q.id}" rows="4" placeholder="Escreva um macete, um resumo ou o motivo do erro.">${esc(S.notes[q.id] || "")}</textarea><div class="row" style="margin-top:8px"><button class="btn sm pri" data-act="savenote">Salvar anotação</button></div>` : histHTML()}</div>` : "";
     host.innerHTML = `<article class="q">
-      <div class="meta">${opts.num ? `<span><b>Questão ${opts.num}${opts.total ? " de " + opts.total : ""}</b></span>` : ""}${metaLine(q)}</div>
+      <div class="meta">${opts.num ? `<span><b>Questão ${opts.num}${opts.total ? " de " + opts.total : ""}</b></span>` : ""}${metaLine(q)}${comTimer ? (answered && tFinal !== null ? `<span class="qt ${tFinal > alvoMs() ? "over" : ""}" title="Tempo nesta questão">⏱ ${fmtT(tFinal)}</span>` : answered ? "" : `<span class="qt" data-qt title="Tempo nesta questão (meta: ${fmtT(alvoMs())})">⏱ 0:00</span>`) : ""}</div>
       <div class="body"><div class="enun">${enunHTML(q)}</div>${optsHTML}${resHTML}</div>
       <div class="qfoot"><div class="row">
         ${opts.simulado ? "" : answered ? `<button class="btn" data-act="again">Refazer</button>` : `<button class="btn pri" data-act="answer" ${sel === null || sel === undefined ? "disabled" : ""}>Responder</button>`}
@@ -554,6 +570,7 @@ function questionCard(host, q, opts = {}) {
         ${canEdit(q) ? `<button class="btn ghost sm" data-act="edit">Editar</button>` : ""}
       </div><span class="small muted">${prev.length ? `Você já resolveu ${prev.length}× · acertou ${okc}` : "Inédita para você"}</span></div>
     </article>`;
+    const qtEl = host.querySelector("[data-qt]"); if (qtEl) { qtEl._clock = clock; qtEl._t0 = t0; qtEl.textContent = "⏱ " + fmtT(clock() - t0); }
   }
   function histHTML() {
     const arr = S.answers[q.id] || []; if (!arr.length) return "Ainda sem tentativas.";
@@ -569,8 +586,8 @@ function questionCard(host, q, opts = {}) {
     if (dc) { if (!dc.dataset.c) { dc.dataset.c = 1; dc.textContent = "Confirmar exclusão"; return; } dc.disabled = true; sb.from("comentarios").delete().eq("id", dc.dataset.delc).then(({ error }) => { if (error) { toast("Não consegui excluir: " + error.message); dc.disabled = false; return; } forum.list = forum.list.filter(c => c.id !== dc.dataset.delc); forum.count = forum.list.length; draw(); toast("Comentário excluído."); }); return; }
     const a = e.target.closest("[data-act]"); if (!a) return;
     const act = a.dataset.act;
-    if (act === "answer" && sel !== null && sel !== undefined) { const ok = registrar(q, sel); answered = true; draw(); renderNav(); opts.onAnswer && opts.onAnswer(ok); }
-    if (act === "again") { answered = false; sel = null; cut.clear(); draw(); }
+    if (act === "answer" && sel !== null && sel !== undefined) { tFinal = clock() - t0; const ok = registrar(q, sel, tFinal); answered = true; draw(); renderNav(); opts.onAnswer && opts.onAnswer(ok, tFinal); }
+    if (act === "again") { answered = false; sel = null; cut.clear(); t0 = clock(); tFinal = null; draw(); }
     if (act === "flag") { if (S.flags[q.id]) delete S.flags[q.id]; else S.flags[q.id] = true; save(); draw(); }
     if (act === "postc") {
       const ta = $("#fc-" + q.id); const texto = ta.value.trim();
@@ -645,6 +662,7 @@ function vQuestoes(m) {
       <label class="f" for="fq">Palavra-chave<input type="search" id="fq" value="${esc(f.busca)}" placeholder="ex.: decadência"></label>
       <div class="row"><button class="btn pri" id="fgo">Filtrar</button><button class="btn ghost" id="fclr">Limpar</button></div>
     </div><div class="small muted" id="fcount" style="margin-top:10px"></div></div>
+    <div class="card timerbar" id="pcbar"></div>
     <div id="qhost" style="margin-top:14px"></div>
     <div class="row" id="qnav" style="margin-top:12px;justify-content:space-between"></div>`;
   const read = () => { practice.filtro = { disc: $("#fd").value, banca: $("#fb").value, origem: $("#fo").value, tipo: $("#ft").value, status: $("#fs").value, busca: $("#fq").value.trim(), doc: $("#fdoc") ? $("#fdoc").value : "" }; };
@@ -652,14 +670,24 @@ function vQuestoes(m) {
   $("#fq").onkeydown = e => { if (e.key === "Enter") $("#fgo").click(); };
   $("#fclr").onclick = () => { practice.filtro = { disc: "", banca: "", origem: "", tipo: "", status: "", busca: "", doc: "" }; practice.list = null; practice.i = 0; vQuestoes(m); };
   if ($("#novaq")) $("#novaq").onclick = () => editQuestion(null, () => { practice.list = null; vQuestoes(m); });
-  if (!practice.list) { practice.list = shuffleIf(filtrar(practice.filtro)).map(q => q.id); practice.i = 0; }
+  if (!practice.list) { practice.list = shuffleIf(filtrar(practice.filtro)).map(q => q.id); practice.i = 0; practice.relogio = null; }
+  if (!practice.relogio) practice.relogio = novoRelogio();
+  const R = practice.relogio;
+  const bar = () => {
+    $("#pcbar").innerHTML = `<span class="small muted">Tempo do caderno</span><span class="big" id="pc-t">${fmtT(R.now())}</span>
+      <span class="small">${R.resolvidas} ${R.resolvidas === 1 ? "resolvida" : "resolvidas"} · média <b>${R.resolvidas ? fmtT(R.tempoResp / R.resolvidas) : "–"}</b> por questão · meta ${fmtT(alvoMs())}</span>
+      <span class="row" style="margin-left:auto"><button class="btn sm" id="pc-pause">${R.running ? "Pausar" : "Continuar"}</button><button class="btn sm ghost" id="pc-zero">Zerar</button></span>`;
+    $("#pc-pause").onclick = () => { R.running ? R.pausar() : R.continuar(); $("#qhost").classList.toggle("pausado", !R.running); bar(); };
+    $("#pc-zero").onclick = () => { practice.relogio = novoRelogio(); vQuestoes(m); };
+  };
   practice.list = practice.list.filter(id => qById(id));
   const n = practice.list.length;
   $("#fcount").textContent = n ? `${n} ${n === 1 ? "questão encontrada" : "questões encontradas"}.` : "";
   if (!n) { $("#qhost").innerHTML = `<div class="card empty">Nenhuma questão com esses filtros. Limpe os filtros, cadastre questões de provas anteriores ou gere questões a partir da legislação.</div>`; return; }
   practice.i = Math.min(practice.i, n - 1);
   const draw = () => {
-    questionCard($("#qhost"), qById(practice.list[practice.i]), { num: practice.i + 1, total: n });
+    questionCard($("#qhost"), qById(practice.list[practice.i]), { num: practice.i + 1, total: n, clock: () => R.now(), onAnswer: (ok, ms) => { R.resolvidas++; R.tempoResp += ms || 0; bar(); } });
+    $("#qhost").classList.toggle("pausado", !R.running); bar();
     $("#qnav").innerHTML = `<button class="btn" id="qp" ${practice.i ? "" : "disabled"}>← Anterior</button><span class="small muted">${practice.i + 1} / ${n}</span><button class="btn pri" id="qn" ${practice.i < n - 1 ? "" : "disabled"}>Próxima →</button>`;
     $("#qp").onclick = () => { practice.i--; draw(); window.scrollTo({ top: 0 }); };
     $("#qn").onclick = () => { practice.i++; draw(); window.scrollTo({ top: 0 }); };
@@ -728,7 +756,7 @@ function startSim({ n, disc, tempo, banca, origem }) {
   let pool = S.questions.filter(q => (!disc || q.disciplina === disc) && (!banca || q.banca === banca) && (!origem || q.origem === origem));
   pool = shuffle(pool).slice(0, n);
   if (!pool.length) { toast("Não há questões para esse simulado."); return false; }
-  SIM = { ids: pool.map(q => q.id), resp: {}, i: 0, start: Date.now(), limit: tempo ? tempo * 60000 : 0, done: false, disc };
+  SIM = { ids: pool.map(q => q.id), resp: {}, tempo: {}, i: 0, start: Date.now(), limit: tempo ? tempo * 60000 : 0, done: false, disc, visto: null };
   return true;
 }
 function vSimulado(m) {
@@ -753,7 +781,9 @@ function vSimulado(m) {
     <div class="grid" style="grid-template-columns:minmax(0,1fr)"><div id="shost"></div>
     <div class="row" style="justify-content:space-between"><button class="btn" id="sp">← Anterior</button><button class="btn pri" id="sn">Próxima →</button></div>
     <div class="card"><h3 style="margin-bottom:10px">Folha de respostas</h3><div class="sheet" id="sheet"></div></div></div>`;
+  const marcaTempo = () => { if (SIM.visto) { SIM.tempo[SIM.visto.id] = (SIM.tempo[SIM.visto.id] || 0) + (Date.now() - SIM.visto.desde); } SIM.visto = SIM.done ? null : { id: SIM.ids[SIM.i], desde: Date.now() }; };
   const draw = () => {
+    marcaTempo();
     const q = qById(SIM.ids[SIM.i]);
     questionCard($("#shost"), q, { num: SIM.i + 1, total: SIM.ids.length, simulado: { resp: SIM.resp[q.id] ?? null, set: v => { if (v === null) delete SIM.resp[q.id]; else SIM.resp[q.id] = v; sheet(); } } });
     $("#sp").disabled = !SIM.i; $("#sn").disabled = SIM.i >= SIM.ids.length - 1; sheet();
@@ -767,7 +797,8 @@ function vSimulado(m) {
 }
 function finishSim() {
   clearInterval(simTick); let c = 0, e = 0, b = 0, ceC = 0, ceE = 0;
-  for (const id of SIM.ids) { const q = qById(id); const r = SIM.resp[id]; if (r === undefined) { b++; continue; } const ok = registrar(q, r); ok ? c++ : e++; if (q.tipo === "CE") ok ? ceC++ : ceE++; }
+  if (SIM.visto) { SIM.tempo[SIM.visto.id] = (SIM.tempo[SIM.visto.id] || 0) + (Date.now() - SIM.visto.desde); SIM.visto = null; }
+  for (const id of SIM.ids) { const q = qById(id); const r = SIM.resp[id]; if (r === undefined) { b++; continue; } const ok = registrar(q, r, SIM.tempo[id]); ok ? c++ : e++; if (q.tipo === "CE") ok ? ceC++ : ceE++; }
   const liquida = S.settings.penal ? c - ceE : c;
   SIM.done = true; SIM.res = { c, e, b, liquida, tempo: Date.now() - SIM.start };
   S.simulados.push({ data: Date.now(), n: SIM.ids.length, acertos: c, erros: e, brancos: b, liquida, pct: pct(c, SIM.ids.length), tempo: SIM.res.tempo, disc: SIM.disc }); save(); renderNav();
@@ -775,8 +806,10 @@ function finishSim() {
 function simResult(m) {
   const r = SIM.res; const n = SIM.ids.length;
   m.innerHTML = `<div class="head"><div><h1>Resultado do simulado</h1><p>${n} questões em ${Math.round(r.tempo / 60000)} min</p></div><div class="row"><button class="btn" id="s-new">Novo simulado</button></div></div>
-    <div class="grid g4"><div class="card tile"><div class="k">Aproveitamento</div><div class="v">${pct(r.c, n)}%</div></div><div class="card tile"><div class="k">Acertos</div><div class="v" style="color:var(--ok)">${r.c}</div></div><div class="card tile"><div class="k">Erros</div><div class="v" style="color:var(--bad)">${r.e}</div></div><div class="card tile"><div class="k">Nota líquida</div><div class="v">${r.liquida}</div><div class="s">${S.settings.penal ? "Errada em C/E anula uma certa" : "Sem penalização"} · ${r.b} em branco</div></div></div>
-    <div class="card" style="margin-top:14px"><h3 style="margin-bottom:10px">Gabarito — toque para ver a questão comentada</h3><div class="sheet" id="sheet">${SIM.ids.map((id, k) => { const q = qById(id); const a = SIM.resp[id]; const cls = a === undefined ? "" : String(a) === String(q.gabarito) ? "r" : "w"; return `<button class="${cls}" data-k="${k}">${k + 1}</button>`; }).join("")}</div></div>
+    <div class="grid g4"><div class="card tile"><div class="k">Aproveitamento</div><div class="v">${pct(r.c, n)}%</div></div><div class="card tile"><div class="k">Acertos</div><div class="v" style="color:var(--ok)">${r.c}</div></div><div class="card tile"><div class="k">Erros</div><div class="v" style="color:var(--bad)">${r.e}</div></div><div class="card tile"><div class="k">Nota líquida</div><div class="v">${r.liquida}</div><div class="s">${S.settings.penal ? "Errada em C/E anula uma certa" : "Sem penalização"} · ${r.b} em branco</div></div>
+    <div class="card tile"><div class="k">Tempo médio por questão</div><div class="v">${fmtT(r.tempo / n)}</div><div class="s">meta ${fmtT(alvoMs())} · total ${fmtT(r.tempo)}</div></div>
+    <div class="card tile"><div class="k">Questões acima da meta</div><div class="v">${SIM.ids.filter(id => (SIM.tempo[id] || 0) > alvoMs()).length}</div><div class="s">em vermelho na folha abaixo</div></div></div>
+    <div class="card" style="margin-top:14px"><h3 style="margin-bottom:10px">Gabarito — toque para ver a questão comentada (o número de baixo é o tempo gasto)</h3><div class="sheet" id="sheet">${SIM.ids.map((id, k) => { const q = qById(id); const a = SIM.resp[id]; const cls = a === undefined ? "" : String(a) === String(q.gabarito) ? "r" : "w"; const tq = SIM.tempo[id] || 0; return `<button class="${cls}" data-k="${k}" style="height:auto;padding:4px 0;line-height:1.2" title="Tempo: ${fmtT(tq)}">${k + 1}<br><small style="${tq > alvoMs() ? "color:#fff;text-decoration:underline" : "opacity:.8"}">${fmtT(tq)}</small></button>`; }).join("")}</div></div>
     <div id="shost" style="margin-top:14px"></div>`;
   $("#s-new").onclick = () => { SIM = null; vSimulado(m); };
   $("#sheet").onclick = e => { const b = e.target.closest("[data-k]"); if (!b) return; const id = SIM.ids[+b.dataset.k]; const q = qById(id); questionCard($("#shost"), q, { num: +b.dataset.k + 1, total: n, simulado: { resp: SIM.resp[id] ?? null, set() {} }, reveal: true }); $("#shost").scrollIntoView({ behavior: "smooth" }); };
@@ -941,7 +974,7 @@ function vDesempenho(m) {
   const ass = {}; for (const [id, arr] of Object.entries(S.answers)) { const q = qById(id); if (!q) continue; const k = (q.disciplina || "") + " — " + (q.assunto || "Geral"); const v = ass[k] = ass[k] || { t: 0, ok: 0 }; arr.forEach(a => { v.t++; if (a.ok) v.ok++; }); }
   const fracos = Object.entries(ass).filter(([, v]) => v.t >= 2).sort((a, b) => a[1].ok / a[1].t - b[1].ok / b[1].t).slice(0, 6);
   m.innerHTML = `<div class="head"><div><h1>Desempenho</h1><p>Onde você está forte e o que precisa de reforço.</p></div></div>
-    <div class="grid g4"><div class="card tile"><div class="k">Resoluções</div><div class="v">${st.tot}</div></div><div class="card tile"><div class="k">Acerto geral</div><div class="v">${pct(st.ok, st.tot)}%</div></div><div class="card tile"><div class="k">Simulados feitos</div><div class="v">${S.simulados.length}</div></div><div class="card tile"><div class="k">Sequência</div><div class="v">${st.streak} d</div></div></div>
+    <div class="grid g4"><div class="card tile"><div class="k">Resoluções</div><div class="v">${st.tot}</div></div><div class="card tile"><div class="k">Acerto geral</div><div class="v">${pct(st.ok, st.tot)}%</div></div><div class="card tile"><div class="k">Tempo médio por questão</div><div class="v">${(() => { const ds = Object.values(S.answers).flat().filter(a => a.d); return ds.length ? fmtT(ds.reduce((x, a) => x + a.d, 0) / ds.length) : "–"; })()}</div><div class="s">meta ${fmtT(alvoMs())} · ${S.simulados.length} simulados feitos</div></div><div class="card tile"><div class="k">Sequência</div><div class="v">${st.streak} d</div></div></div>
     <div class="grid g2" style="margin-top:14px">
       <div class="card"><h2 style="margin-bottom:12px">Questões por dia (14 dias)</h2><div class="cols">${dias.map((x, i) => `<div class="${i === 13 ? "today" : ""}" style="height:${Math.round(100 * (st.porDia[x.k] || 0) / maxD)}%" title="${x.d.toLocaleDateString("pt-BR")}: ${st.porDia[x.k] || 0}"></div>`).join("")}</div><div class="colx">${dias.map(x => `<span>${x.d.getDate()}</span>`).join("")}</div><div class="small muted" style="margin-top:6px">Pico: ${maxD} questões em um dia</div></div>
       <div class="card"><h2 style="margin-bottom:12px">Por disciplina</h2>${discBars(st)}</div>
@@ -959,6 +992,7 @@ function vAjustes(m) {
     <div class="card stack"><h2>Perfil e estudo</h2>
       <label class="f" for="a-nome">Seu nome<input type="text" id="a-nome" value="${esc(s.nome)}"></label>
       <label class="f" for="a-meta">Meta diária de questões<input type="number" id="a-meta" min="1" max="500" value="${+s.meta || 20}"></label>
+      <label class="f" for="a-alvo">Tempo-alvo por questão (minutos)<input type="number" id="a-alvo" min="0.5" max="30" step="0.5" value="${+s.alvo || 3}"></label>
       <label class="row small"><input type="checkbox" id="a-pen" ${s.penal ? "checked" : ""}> Nos simulados, cada errada em Certo/Errado anula uma certa (CEBRASPE)</label>
       <label class="f" for="a-tema">Tema<select id="a-tema"><option value="auto" ${s.tema === "auto" ? "selected" : ""}>Automático</option><option value="light" ${s.tema === "light" ? "selected" : ""}>Claro</option><option value="dark" ${s.tema === "dark" ? "selected" : ""}>Escuro</option></select></label>
       <button class="btn pri" id="a-save1">Salvar</button></div>
@@ -985,7 +1019,7 @@ function vAjustes(m) {
       <textarea id="a-exp-t" rows="4" readonly placeholder="A exportação aparece aqui."></textarea></div>
   </div>`;
   $("#a-save1").onclick = async () => {
-    s.nome = $("#a-nome").value.trim(); s.meta = Math.max(1, +$("#a-meta").value || 20); s.penal = $("#a-pen").checked; s.tema = $("#a-tema").value; save(); applyTheme();
+    s.nome = $("#a-nome").value.trim(); s.meta = Math.max(1, +$("#a-meta").value || 20); s.alvo = Math.min(30, Math.max(0.5, +$("#a-alvo").value || 3)); s.penal = $("#a-pen").checked; s.tema = $("#a-tema").value; save(); applyTheme();
     if (s.nome !== PROFILE.nome) { const { error } = await sb.from("profiles").update({ nome: s.nome }).eq("id", ME.id); if (!error) PROFILE.nome = s.nome; }
     toast("Ajustes salvos.");
   };
