@@ -99,6 +99,16 @@ create table if not exists public.geracoes (
 create index if not exists geracoes_user_idx on public.geracoes(user_id, criado_em);
 
 -- =============================================================
+-- Permissões da API (necessárias quando "Automatically expose new tables"
+-- está desligado). Quem vê o quê continua decidido pelas regras abaixo.
+-- =============================================================
+grant usage on schema public to anon, authenticated;
+grant select, update on public.profiles to authenticated;
+grant select, insert, update, delete on public.questoes, public.estado, public.documentos to authenticated;
+grant select on public.geracoes to authenticated;
+grant execute on function public.is_admin(), public.acesso_ativo() to authenticated;
+
+-- =============================================================
 -- Regras de acesso (Row Level Security)
 -- =============================================================
 alter table public.profiles   enable row level security;
