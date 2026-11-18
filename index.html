@@ -196,7 +196,7 @@ svg.i{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-widt
 <div class="toast" id="toast" role="status"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
-<script src="config.js"></script>
+<script src="config.js?v=2"></script>
 <script>
 "use strict";
 /* ============================================================
@@ -227,7 +227,9 @@ const ICONS = {
 const icon = n => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${ICONS[n] || ""}</svg>`;
 
 /* ---------------- Nuvem (Supabase) ---------------- */
-const CFG = window.CAMOCIM_CONFIG || {};
+// Valores públicos embutidos (iguais aos do config.js), para o app funcionar mesmo se o config.js não carregar
+const CFG_PADRAO = { supabaseUrl: "https://dipobcbjpqpgpxejnnvh.supabase.co", supabaseAnonKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRpcG9iY2JqcHFwZ3B4ZWpubnZoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQ1MDkzNjYsImV4cCI6MjExMDA4NTM2Nn0.oRR5gPyoMFgXjAcFbPdQ1PMLQ7tqFMDeIOpTo0zW6Uk", apiGerar: "/api/gerar", contato: "WhatsApp (95) 99121-8946" };
+const CFG = { ...CFG_PADRAO, ...Object.fromEntries(Object.entries(window.CAMOCIM_CONFIG || {}).filter(([, v]) => v !== "" && v !== undefined)) };
 let sb = null, ME = null, PROFILE = null;
 const isAdmin = () => PROFILE && PROFILE.role === "admin";
 const canEdit = q => isAdmin() || (ME && q.owner === ME.id);
