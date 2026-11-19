@@ -231,6 +231,7 @@ const ICONS = {
   revisao: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/>',
   legislacao: '<path d="M4 4h10l6 6v10a1 1 0 0 1-1 1H4z"/><path d="M14 4v6h6M8 14h8M8 17h6"/>',
   desempenho: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
+  importar: '<path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z"/><path d="M14 3v5h5M12 11v6M9 14l3 3 3-3"/>',
   admin: '<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/>',
   ajustes: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"/>'
 };
@@ -502,7 +503,7 @@ function renderNav() {
     VIEWS.map(([k, l]) => `<a href="#${k}" class="${r === k ? "on" : ""}">${icon(k)}${l}${k === "revisao" && due ? `<span class="n">${due}</span>` : ""}</a>`).join("") +
     `<a href="#" data-sair>${icon("sair")}Sair</a>` +
     `<div class="foot">${S.questions.length} questões no banco</div>`;
-  $("#bottomnav").innerHTML = VIEWS.filter(v => v[0] !== "desempenho" && v[0] !== "admin").map(([k, l]) => `<a href="#${k}" class="${r === k ? "on" : ""}"><svg viewBox="0 0 24 24" class="i" aria-hidden="true">${ICONS[k]}</svg>${l}</a>`).join("") +
+  $("#bottomnav").innerHTML = VIEWS.filter(v => v[0] !== "desempenho" && v[0] !== "admin" && v[0] !== "importar").map(([k, l]) => `<a href="#${k}" class="${r === k ? "on" : ""}"><svg viewBox="0 0 24 24" class="i" aria-hidden="true">${ICONS[k]}</svg>${l}</a>`).join("") +
     `<a href="#" data-sair><svg viewBox="0 0 24 24" class="i" aria-hidden="true">${ICONS.sair}</svg>Sair</a>`;
   document.querySelectorAll("[data-sair]").forEach(a => a.onclick = async e => {
     e.preventDefault(); if (!confirm("Deseja sair do app?")) return;
@@ -512,7 +513,7 @@ function renderNav() {
 function render() {
   if (!ME || !PROFILE || $("#app").hidden) return;
   renderNav(); const r = route(); const m = $("#main");
-  ({ inicio: vInicio, questoes: vQuestoes, simulado: vSimulado, revisao: vRevisao, legislacao: vLegislacao, desempenho: vDesempenho, ajustes: vAjustes, admin: vAdmin })[r](m);
+  ({ inicio: vInicio, questoes: vQuestoes, simulado: vSimulado, revisao: vRevisao, legislacao: vLegislacao, desempenho: vDesempenho, ajustes: vAjustes, admin: vAdmin, importar: vImportar })[r](m);
   applyTheme();
 }
 window.addEventListener("hashchange", () => { window.scrollTo(0, 0); render(); });
@@ -1013,6 +1014,7 @@ function vAjustes(m) {
       <hr style="border:0;border-top:1px solid var(--line);width:100%">
       <button class="btn danger" id="a-reset-hist">Zerar meu histórico de respostas</button></div>
     ${isAdmin() ? `<div class="card stack"><h2>Importar questões</h2>
+      <p class="small"><a class="btn" href="#importar">Importar prova em PDF →</a></p>
       <p class="small muted">Carregue um lote de questões em JSON. Formato:</p>
       <pre class="code">${esc(exemplo)}</pre>
       <label class="btn" for="a-imp-f">Escolher arquivo .json<input type="file" id="a-imp-f" accept=".json,application/json" hidden></label>
@@ -1080,6 +1082,13 @@ const acessoOk = p => p && (p.role === "admin" || (p.status === "ativo" && (!p.v
 
 /* ---------------- Tela: Administração ---------------- */
 let ADM = { filtro: "pendente", busca: "" };
+async function vImportar(m) {
+  if (!isAdmin()) { location.hash = "inicio"; return; }
+  window.APP = { $, esc, toast, modal, closeModal, loadScript, PDFJS, insertQuestions, renderNav, practice };
+  m.innerHTML = `<div class="card empty">Carregando o importador…</div>`;
+  try { await loadScript("importador.js?v=1"); window.Importador.tela(m); }
+  catch (e) { m.innerHTML = `<div class="card empty">Não consegui carregar o importador: ${esc(e.message)}</div>`; }
+}
 async function vAdmin(m) {
   if (!isAdmin()) { location.hash = "inicio"; return; }
   m.innerHTML = `<div class="head"><div><h1>Administração</h1><p>Libere alunos, controle a validade do acesso e acompanhe o uso da IA.</p></div></div><div class="card empty">Carregando…</div>`;
@@ -1199,7 +1208,7 @@ async function enter(user) {
   if (error || !data) { gate(`<p>Não consegui carregar seu perfil${error ? ": " + esc(error.message) : ""}.</p><button class="btn" id="er-o">Sair</button>`); $("#er-o").onclick = async () => { await sb.auth.signOut(); showLogin(); }; return; }
   PROFILE = data;
   if (!acessoOk(PROFILE)) return showPending();
-  VIEWS = BASE_VIEWS.filter(v => isAdmin() || v[0] !== "legislacao"); if (isAdmin()) VIEWS.push(["admin", "Administração"]);
+  VIEWS = BASE_VIEWS.filter(v => isAdmin() || v[0] !== "legislacao"); if (isAdmin()) VIEWS.push(["admin", "Administração"], ["importar", "Importar PDF"]);
   try { await loadAll(); } catch (e) { gate(`<p>Não consegui carregar as questões: ${esc(e.message)}</p><button class="btn pri" id="er-r">Tentar de novo</button>`); $("#er-r").onclick = () => enter(user); return; }
   applyTheme(); openApp();
 }
