@@ -8,14 +8,14 @@
 const TESS = "https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js";
 
 // Monta linhas a partir dos itens de texto do pdf.js, respeitando duas colunas.
-function linhasDaPagina(items, largura) {
-  const its = items.filter(i => i.str && i.str.trim()).map(i => ({ s: i.str, x: i.transform[4], y: i.transform[5], w: i.width || 0, h: Math.abs(i.transform[3]) || 10 }));
-  if (!its.length) return "";
+function linhasDaPagina(items, largura, semColunas) {
+  const its = items.filter(i => i.str).map(i => ({ s: i.str, x: i.transform[4], y: i.transform[5], w: i.width || 0, h: Math.abs(i.transform[3]) || 10 }));
+  if (!its.some(i => i.s.trim())) return "";
   const meio = largura / 2;
   const cruzam = its.filter(i => i.x < meio - 10 && i.x + i.w > meio + 10).reduce((a, i) => a + i.s.length, 0);
   const total = its.reduce((a, i) => a + i.s.length, 0);
   const esq = its.filter(i => i.x < meio - 5).length, dir = its.filter(i => i.x >= meio - 5).length;
-  const duasColunas = cruzam < total * 0.12 && esq > 15 && dir > 15;
+  const duasColunas = !semColunas && cruzam < total * 0.12 && esq > 15 && dir > 15;
   const grupos = duasColunas ? [its.filter(i => i.x < meio - 5), its.filter(i => i.x >= meio - 5)] : [its];
   const out = [];
   for (const g of grupos) {
@@ -25,7 +25,7 @@ function linhasDaPagina(items, largura) {
       if (!linha.length) return;
       linha.sort((a, b) => a.x - b.x);
       let t = "", fim = null;
-      for (const it of linha) { if (fim !== null && it.x - fim > it.h * 0.2 && !t.endsWith(" ") && !it.s.startsWith(" ")) t += " "; t += it.s; fim = it.x + it.w; }
+      for (const it of linha) { if (!it.s.trim()) { if (t && !t.endsWith(" ")) t += " "; fim = it.x + it.w; continue; } if (fim !== null && it.x - fim > it.h * 0.2 && !t.endsWith(" ") && !it.s.startsWith(" ")) t += " "; t += it.s; fim = it.x + it.w; }
       out.push(t.replace(/\s+/g, " ").trim()); linha = [];
     };
     for (const it of g) { if (yAtual !== null && Math.abs(it.y - yAtual) > it.h * 0.45) fecha(); if (!linha.length) yAtual = it.y; linha.push(it); }
@@ -53,7 +53,7 @@ async function ocrWorkers(n) {
 }
 
 // Lê um PDF e devolve o texto de cada página. Usa OCR só nas páginas sem texto bom.
-async function lerPdf(file, prog, forcarOcr) {
+async function lerPdf(file, prog, forcarOcr, semColunas) {
   await G.APP.loadScript(G.APP.PDFJS + "pdf.min.js");
   const lib = G.pdfjsLib; lib.GlobalWorkerOptions.workerSrc = G.APP.PDFJS + "pdf.worker.min.js";
   const pdf = await lib.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
@@ -62,7 +62,7 @@ async function lerPdf(file, prog, forcarOcr) {
     const page = await pdf.getPage(p);
     const vp = page.getViewport({ scale: 1 });
     const tc = await page.getTextContent();
-    const t = linhasDaPagina(tc.items, vp.width);
+    const t = linhasDaPagina(tc.items, vp.width, semColunas);
     if (forcarOcr || textoRuim(t)) precisaOcr.push(p); else paginas[p - 1] = t;
     prog(`Lendo ${file.name}: página ${p} de ${N}`, p / N * (precisaOcr.length ? 0.15 : 1));
   }
@@ -87,18 +87,20 @@ async function lerPdf(file, prog, forcarOcr) {
 }
 
 /* ===================== 2. LIMPEZA ===================== */
-const LIXO = /caderno\s+de\s+prova|tipo[\s-]*0{0,2}1\b|^modelo$|^p[áa]gina\s*\d+|^\W{0,3}$|^www\.|^about:blank|fundação\s*carlos\s*chagas|^fcc$/i;
+const LIXO = /caderno\s+de\s+prova|^tipo\s+\w+\s*[–-]\s*p[áa]gina\s*\d+|fgv\s+conhecimento$|^–\s|tipo[\s-]*0{0,2}1\b|^modelo$|^p[áa]gina\s*\d+|^\W{0,3}$|^www\.|^about:blank|fundação\s*carlos\s*chagas|^fcc$/i;
 function limpar(paginas, soNumero) {
   // cabeçalho/rodapé: linhas nas 3 primeiras ou 3 últimas posições que se repetem em muitas páginas
   const norm = l => l.toLowerCase().replace(/[\d\s'’"]+/g, "");
   const pls = paginas.map(t => t.split(/\r?\n/).map(l => l.replace(/\s+/g, " ").trim()).filter(Boolean));
   const borda = ls => ls.slice(0, 3).concat(ls.slice(-3));
-  const freq = {};
+  const freq = {}, todas = {};
   pls.forEach(ls => new Set(borda(ls).map(norm).filter(x => x.length > 3)).forEach(k => freq[k] = (freq[k] || 0) + 1));
+  pls.forEach(ls => new Set(ls.filter(l => !/^\(?[A-Ea-e]\)/.test(l)).map(norm).filter(x => x.length > 6)).forEach(k => todas[k] = (todas[k] || 0) + 1));
   const lim = paginas.length >= 4 ? Math.max(3, paginas.length * 0.3) : Infinity;
   return pls.map(ls => ls.filter((l, i) => {
-    if (LIXO.test(l) || (soNumero && /^\d{1,4}$/.test(l))) return false;
+    if (LIXO.test(l)) return false;
     const naBorda = i < 3 || i >= ls.length - 3;
+    if (paginas.length >= 6 && todas[norm(l)] >= paginas.length * 0.5 && l.length < 90 && !/^\(?[A-Ea-e]\)/.test(l)) return false;
     return !(naBorda && freq[norm(l)] >= lim && l.length < 90);
   }).join("\n")).join("\n");
 }
@@ -109,8 +111,8 @@ function juntar(linhas) {
   let t = "";
   for (const l of linhas) {
     if (!t) { t = l; continue; }
-    if (/[a-zà-ú]-$/.test(t) && /^[a-zà-ú]/.test(l)) { t = t.slice(0, -1) + l; continue; }
-    const quebra = /[:;]$/.test(t) && ROM.test(l) || /^[IVX]{1,5}\.\s/.test(l) || /^[•●▪\-–]\s/.test(l) || /\|/.test(l);
+    if (/[a-zà-ú]-$/.test(t) && /^[a-zà-ú]/.test(l)) { t = /^(se|me|te|lhes?|l[oa]s?|n[oa]s?|vos|[oa]s?)\b/.test(l) ? t + l : t.slice(0, -1) + l; continue; }
+    const quebra = /[:;]$/.test(t) && ROM.test(l) || /^[IVX]{1,5}\.\s/.test(l) || /^[•●▪\-–]\s/.test(l) || /^\(\s*\)\s/.test(l) || (/^(Está correto|As afirmativas são|Assinale|É correto)/.test(l) && /^(\(\s*\)|[IVX]{1,5}\.)/m.test(t.split("\n").pop())) || /\|/.test(l);
     t += (quebra ? "\n" : " ") + l;
   }
   return t.replace(/[ \t]+/g, " ").trim();
@@ -152,6 +154,15 @@ function parseQuestoes(texto, opt) {
       continue;
     }
     const pronta = !q || !ME || alt >= nAlt - 2; // pelo menos 4 de 5 alternativas lidas
+    if (ME && /^\d{1,4}$/.test(l)) { // número sozinho na linha: questão (padrão FGV) ou número de página
+      const v = +l;
+      if (pronta && (v === esperado || (q && alt >= nAlt - 1 && v === esperado + 1))) {
+        fechaPend(); esperado = v;
+        q = { n: v, enun: [], alts: L.split("").map(() => []), disciplina: disc };
+        qs.push(q); alt = -1; esperado++;
+      }
+      continue;
+    }
     const qs0 = pronta && qStart(l, esperado, q && ME && alt >= nAlt - 1);
     if (qs0) {
       fechaPend();
@@ -206,15 +217,28 @@ function parseQuestoes(texto, opt) {
 /* ===================== 4. GABARITO ===================== */
 // Devolve blocos {numero: resposta}; um bloco novo começa quando a numeração recomeça.
 function parseGabarito(texto) {
-  const t = texto.replace(/\r/g, "");
+  let t = texto.replace(/\r/g, "");
+  // formato em tabela: uma linha só com números e, logo abaixo, uma linha só com respostas
+  const ls = t.split("\n").map(x => x.trim()), pares = []; let tabela = false;
+  for (let i = 0; i < ls.length - 1; i++) {
+    const ns = ls[i].split(/\s+/), rs = ls[i + 1].split(/\s+/);
+    if (ns.length >= 5 && ns.every(x => /^\d{1,3}$/.test(x)) && rs.length === ns.length && rs.every(x => /^([A-E]|\*|X|NULA|ANULADA)$/i.test(x))) {
+      pares.push(ns.map((n, k) => `${n} ${rs[k]}`).join("\n")); ls[i] = ls[i + 1] = ""; i++; tabela = true;
+    } else if (/[a-zà-ú]{3}/i.test(ls[i]) && /turno|tipo|cargo|prova|caderno|manh[ãa]|tarde|conhecimentos|m[óo]dulo/i.test(ls[i])) pares.push("\n" + ls[i] + "\n");
+  }
+  if (tabela) t = pares.join("\n");
   const so = t.replace(/[^A-Za-z*]/g, "");
   if (/^[A-EXx*]{5,}$/.test(so) && !/\d/.test(t)) return [Object.fromEntries(so.toUpperCase().split("").map((c, i) => [i + 1, c]))];
   const re = /(?<![\d\/.,:])(\d{1,3})\s*(?:[-–.:)=]\s*)?(?:resposta\s*)?(anulad[ao]|nula|[A-E]|\*|X)(?![a-zà-ú])/gi;
-  const blocos = []; let b = null, ult = 0, m;
-  while ((m = re.exec(t))) {
-    const n = +m[1]; let r = m[2].toUpperCase(); if (/^(ANULAD|NULA|\*|X)/.test(r)) r = "X";
-    if (!b || n <= ult) { b = {}; blocos.push(b); }
-    if (n === ult + 1 || !Object.keys(b).length) { b[n] = r; ult = n; }
+  const blocos = []; let b = null, ult = 0, m, rotulo = "";
+  for (const linha of t.split("\n")) {
+    if (/[a-zà-ú]{3}/i.test(linha) && /turno|tipo|prova|cargo|caderno|gabarito|manh[ãa]|tarde|conhecimentos|m[óo]dulo/i.test(linha) && !/^\s*\d{1,3}\s+[A-E*X]\b/.test(linha)) { if (!/data\s+de|publica|hor[áa]rio/i.test(linha)) rotulo = linha.trim().slice(0, 80); continue; }
+    re.lastIndex = 0;
+    while ((m = re.exec(linha))) {
+      const n = +m[1]; let r = m[2].toUpperCase(); if (/^(ANULAD|NULA|\*|X)/.test(r)) r = "X";
+      if (!b || n <= ult) { b = {}; Object.defineProperty(b, "_nome", { value: rotulo, enumerable: false }); blocos.push(b); }
+      if (n === ult + 1 || !Object.keys(b).length) { b[n] = r; ult = n; }
+    }
   }
   return blocos.filter(x => Object.keys(x).length >= 5);
 }
@@ -260,7 +284,7 @@ async function ler() {
   try {
     let gabTxt = $("#im-gabt").value.trim();
     const gf = $("#im-gab").files[0];
-    if (gf) gabTxt += "\n" + (gf.name.toLowerCase().endsWith(".pdf") ? (await lerPdf(gf, prog, $("#im-ocr").checked)).join("\n") : await gf.text());
+    if (gf) gabTxt += "\n" + (gf.name.toLowerCase().endsWith(".pdf") ? (await lerPdf(gf, prog, $("#im-ocr").checked, true)).join("\n") : await gf.text());
     ST.gab = gabTxt ? parseGabarito(gabTxt) : [];
     ST.arquivos = [];
     for (const f of provas) {
@@ -299,7 +323,7 @@ function problemas(q) {
 function mostrar() {
   const { $, esc } = G.APP;
   const box = $("#im-res");
-  const blocoSel = (arq, i) => ST.gab.length > 1 ? `<label class="f small">Bloco do gabarito<select data-bl="${i}">${ST.gab.map((b, j) => `<option value="${j}" ${arq.bloco === j ? "selected" : ""}>Bloco ${j + 1} (${Object.keys(b).length} respostas, começa em ${Object.keys(b)[0]})</option>`).join("")}</select></label>` : "";
+  const blocoSel = (arq, i) => ST.gab.length > 1 ? `<label class="f small">Bloco do gabarito<select data-bl="${i}">${ST.gab.map((b, j) => `<option value="${j}" ${arq.bloco === j ? "selected" : ""}>${esc(b._nome || "Bloco " + (j + 1))} (${Object.keys(b).length} respostas)</option>`).join("")}</select></label>` : "";
   ST.arquivos.forEach(aplicaGab);
   const total = ST.arquivos.reduce((a, x) => a + x.qs.filter(q => q.incluir).length, 0);
   box.innerHTML = `<div class="card stack" style="margin-top:14px"><div class="row" style="justify-content:space-between"><h2>3. Conferir</h2><span class="small muted">${total} questões marcadas para salvar</span></div>
