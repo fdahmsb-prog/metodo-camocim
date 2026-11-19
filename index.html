@@ -183,7 +183,7 @@ table.t th{font-size:12.5px;color:var(--muted);font-weight:600}
   .app{grid-template-columns:1fr}
   nav.side{display:none}
   nav.bottom{display:flex;position:fixed;bottom:0;left:0;right:0;background:var(--ink);z-index:40;justify-content:space-around;padding:6px 4px calc(6px + env(safe-area-inset-bottom))}
-  nav.bottom a{color:#cfd6e1;text-decoration:none;font-size:11px;display:flex;flex-direction:column;align-items:center;gap:2px;padding:4px 6px;border-radius:8px;min-width:54px}
+  nav.bottom a{color:#cfd6e1;text-decoration:none;font-size:11px;display:flex;flex-direction:column;align-items:center;gap:2px;padding:4px 2px;border-radius:8px;min-width:0;flex:1}
   nav.bottom a.on{color:var(--mark)}
   nav.bottom svg{width:22px;height:22px}
   main{padding-top:20px}
@@ -225,6 +225,7 @@ const dayKey = t => { const d = new Date(t); return d.getFullYear() + "-" + (d.g
 
 const ICONS = {
   inicio: '<path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
+  sair: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>',
   questoes: '<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/>',
   simulado: '<circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2M9 2h6"/>',
   revisao: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/>',
@@ -237,7 +238,7 @@ const icon = n => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${ICONS
 
 /* ---------------- Nuvem (Supabase) ---------------- */
 // Valores públicos embutidos (iguais aos do config.js), para o app funcionar mesmo se o config.js não carregar
-const CFG_PADRAO = { supabaseUrl: "https://dipobcbjpqpgpxejnnvh.supabase.co", supabaseAnonKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRpcG9iY2JqcHFwZ3B4ZWpubnZoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQ1MDkzNjYsImV4cCI6MjExMDA4NTM2Nn0.oRR5gPyoMFgXjAcFbPdQ1PMLQ7tqFMDeIOpTo0zW6Uk", apiGerar: "/api/gerar", contato: "WhatsApp (95) 99121-8946" };
+const CFG_PADRAO = { supabaseUrl: "https://dipobcbjpqpgpxejnnvh.supabase.co", supabaseAnonKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRpcG9iY2JqcHFwZ3B4ZWpubnZoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQ1MDkzNjYsImV4cCI6MjExMDA4NTM2Nn0.oRR5gPyoMFgXjAcFbPdQ1PMLQ7tqFMDeIOpTo0zW6Uk", apiGerar: "/api/gerar", contato: "WhatsApp (95) 99121-8946 · fdahmsb@gmail.com", email: "fdahmsb@gmail.com" };
 const CFG = { ...CFG_PADRAO, ...Object.fromEntries(Object.entries(window.CAMOCIM_CONFIG || {}).filter(([, v]) => v !== "" && v !== undefined)) };
 let sb = null, ME = null, PROFILE = null;
 const isAdmin = () => PROFILE && PROFILE.role === "admin";
@@ -499,8 +500,14 @@ function renderNav() {
   const r = route(); const due = dueIds().length;
   $("#sidenav").innerHTML = `<div class="brand"><div class="dot">MC</div><div><b>Método Camocim</b><small>Concursos</small></div></div>` +
     VIEWS.map(([k, l]) => `<a href="#${k}" class="${r === k ? "on" : ""}">${icon(k)}${l}${k === "revisao" && due ? `<span class="n">${due}</span>` : ""}</a>`).join("") +
+    `<a href="#" data-sair>${icon("sair")}Sair</a>` +
     `<div class="foot">${S.questions.length} questões no banco</div>`;
-  $("#bottomnav").innerHTML = VIEWS.filter(v => v[0] !== "desempenho" && v[0] !== "admin").map(([k, l]) => `<a href="#${k}" class="${r === k ? "on" : ""}"><svg viewBox="0 0 24 24" class="i" aria-hidden="true">${ICONS[k]}</svg>${l}</a>`).join("");
+  $("#bottomnav").innerHTML = VIEWS.filter(v => v[0] !== "desempenho" && v[0] !== "admin").map(([k, l]) => `<a href="#${k}" class="${r === k ? "on" : ""}"><svg viewBox="0 0 24 24" class="i" aria-hidden="true">${ICONS[k]}</svg>${l}</a>`).join("") +
+    `<a href="#" data-sair><svg viewBox="0 0 24 24" class="i" aria-hidden="true">${ICONS.sair}</svg>Sair</a>`;
+  document.querySelectorAll("[data-sair]").forEach(a => a.onclick = async e => {
+    e.preventDefault(); if (!confirm("Deseja sair do app?")) return;
+    await sb.auth.signOut(); location.hash = ""; location.reload();
+  });
 }
 function render() {
   if (!ME || !PROFILE || $("#app").hidden) return;
@@ -611,7 +618,7 @@ function vInicio(m) {
   const ineditas = S.questions.filter(q => !S.answers[q.id]).length;
   const nome = S.settings.nome ? ", " + esc(S.settings.nome.split(" ")[0]) : "";
   const erradas = S.questions.filter(q => { const l = lastAns(q.id); return l && !l.ok; }).length;
-  m.innerHTML = `<div class="head"><div><h1>Bons estudos${nome}</h1><p>Resolva, revise o que errou e transforme a lei seca em questões.</p></div>
+  m.innerHTML = `<div class="head"><div><h1>Bons estudos${nome}</h1><p>Resolva, revise o que errou e transforme a lei seca em questões.</p><p class="small muted">Dúvidas e suporte: <a href="mailto:${esc(CFG.email || "fdahmsb@gmail.com")}"><b>${esc(CFG.email || "fdahmsb@gmail.com")}</b></a></p></div>
     <div class="row"><a class="btn pri" href="#questoes">Resolver questões</a>${isAdmin() ? `<a class="btn" href="#legislacao">Gerar da legislação</a>` : ""}</div></div>
     <div class="grid g4">
       <div class="card tile"><div class="k">Meta de hoje</div><div class="v">${st.hoje}<span class="muted" style="font-size:18px"> / ${meta}</span></div><div class="bar" style="margin-top:10px"><i style="width:${Math.min(100, pct(st.hoje, meta))}%"></i></div><div class="s">${st.hoje >= meta ? "Meta cumprida." : `Faltam ${meta - st.hoje} questões.`}</div></div>
