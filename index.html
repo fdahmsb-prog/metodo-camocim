@@ -634,7 +634,7 @@ function vInicio(m) {
   const ineditas = S.questions.filter(q => !S.answers[q.id]).length;
   const nome = S.settings.nome ? ", " + esc(S.settings.nome.split(" ")[0]) : "";
   const erradas = S.questions.filter(q => { const l = lastAns(q.id); return l && !l.ok; }).length;
-  m.innerHTML = `<div class="head"><div><h1>Bons estudos${nome}</h1><p>Resolva, revise o que errou e transforme a lei seca em questões.</p><p class="small muted">Dúvidas e suporte: <a href="mailto:${esc(CFG.email || "fdahmsb@gmail.com")}"><b>${esc(CFG.email || "fdahmsb@gmail.com")}</b></a></p></div>
+  m.innerHTML = `<div class="head"><div><h1>Bons estudos${nome}</h1><p>Resolva, revise o que errou e transforme a lei seca em questões.</p><p class="small muted">Dúvidas e suporte: <a href="mailto:${esc(CFG.email || "fdahmsb@gmail.com")}"><b>${esc(CFG.email || "fdahmsb@gmail.com")}</b></a></p>${isAdmin() ? `<p><a class="btn pri" href="#importar">Importar prova em PDF</a> <a class="btn" href="#admin">Administração</a></p>` : ""}</div>
     <div class="row"><a class="btn pri" href="#questoes">Resolver questões</a>${isAdmin() ? `<a class="btn" href="#legislacao">Gerar da legislação</a>` : ""}</div></div>
     <div class="grid g4">
       <div class="card tile"><div class="k">Meta de hoje</div><div class="v">${st.hoje}<span class="muted" style="font-size:18px"> / ${meta}</span></div><div class="bar" style="margin-top:10px"><i style="width:${Math.min(100, pct(st.hoje, meta))}%"></i></div><div class="s">${st.hoje >= meta ? "Meta cumprida." : `Faltam ${meta - st.hoje} questões.`}</div></div>
