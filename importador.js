@@ -245,9 +245,35 @@ function parseGabarito(texto) {
 
 /* ===================== 5. TELA ===================== */
 const ST = { qs: [], gab: [], arquivos: [] };
+const BANCAS = [["Qualquer banca", ""], ["FCC", "concursosfcc.com.br"], ["FGV", "conhecimento.fgv.br"], ["Cebraspe", "cebraspe.org.br"], ["Vunesp", "vunesp.com.br"], ["Cesgranrio", "cesgranrio.org.br"], ["FUNDATEC", "fundatec.org.br"], ["IBFC", "ibfc.org.br"], ["Instituto AOCP", "institutoaocp.org.br"], ["Quadrix", "quadrix.org.br"], ["IDECAN", "idecan.org.br"], ["Consulplan", "institutoconsulplan.org.br"], ["IADES", "iades.com.br"], ["Instituto Verbena", "institutoverbena.ufg.br"], ["Cetro / outras", ""]];
+function linksBusca({ banca, orgao, cargo, ano }) {
+  const b = BANCAS.find(x => x[0] === banca) || BANCAS[0];
+  const nomeBanca = b[1] ? banca : "";
+  const termos = [nomeBanca, orgao, cargo, ano].filter(Boolean).join(" ");
+  const q = s => encodeURIComponent(s.replace(/\s+/g, " ").trim());
+  const g = s => "https://www.google.com/search?q=" + q(s);
+  const L = [];
+  if (b[1]) L.push({ nome: "Site oficial " + banca, url: g(`site:${b[1]} ${[orgao, cargo, ano].filter(Boolean).join(" ")} prova gabarito`) });
+  L.push({ nome: "PDF da prova", url: g(`${termos} prova filetype:pdf`) });
+  L.push({ nome: "PDF do gabarito", url: g(`${termos} gabarito definitivo filetype:pdf`) });
+  L.push({ nome: "PCI Concursos", url: g(`site:pciconcursos.com.br/provas ${termos}`) });
+  L.push({ nome: "Estude Grátis", url: g(`site:estudegratis.com.br/provas ${termos}`) });
+  if (orgao) L.push({ nome: "Site do órgão", url: g(`${orgao} concurso ${cargo} ${ano} prova gabarito`) });
+  return L;
+}
 function tela(m) {
   const { esc, $ } = G.APP;
   m.innerHTML = `<div class="head"><div><h1>Importar prova (PDF)</h1><p>Transforme provas anteriores em questões do app, direto no navegador, sem IA e sem custo.</p></div></div>
+  <div class="card stack" style="margin-bottom:14px"><h2>Encontrar provas anteriores</h2>
+    <p class="small muted">Preencha o que souber e toque numa fonte. A busca abre em outra aba; baixe a prova e o gabarito do <b>mesmo tipo</b> e volte aqui para importar.</p>
+    <div class="grid g2">
+      <label class="f">Banca<select id="bp-banca">${BANCAS.map(b => `<option value="${b[0]}">${b[0]}</option>`).join("")}</select></label>
+      <label class="f">Órgão<input id="bp-orgao" placeholder="Ex.: SEFAZ-PI, TCE-AM"></label>
+      <label class="f">Cargo<input id="bp-cargo" placeholder="Ex.: Auditor Fiscal"></label>
+      <label class="f">Ano<input id="bp-ano" inputmode="numeric" placeholder="Ex.: 2025"></label>
+    </div>
+    <div class="row" style="flex-wrap:wrap;gap:8px" id="bp-links"></div>
+  </div>
   <div class="grid g2">
     <div class="card stack"><h2>1. Arquivos</h2>
       <label class="f">PDF da prova (pode escolher vários)<input type="file" id="im-prova" accept="application/pdf,.pdf" multiple></label>
@@ -271,6 +297,10 @@ function tela(m) {
   </div>
   <div id="im-res"></div>`;
   $("#im-ler").onclick = ler;
+  const atual = () => { const v = id => $(id).value.trim(); return { banca: v("#bp-banca"), orgao: v("#bp-orgao"), cargo: v("#bp-cargo"), ano: v("#bp-ano") }; };
+  const desenha = () => { $("#bp-links").innerHTML = linksBusca(atual()).map(l => `<a class="btn sm" target="_blank" rel="noopener" href="${esc(l.url)}">${esc(l.nome)} ↗</a>`).join(""); };
+  ["#bp-banca", "#bp-orgao", "#bp-cargo", "#bp-ano"].forEach(id => $(id).addEventListener("input", desenha)); desenha();
+  $("#bp-banca").addEventListener("change", () => { const b = $("#bp-banca").value; if (b !== "Qualquer banca") $("#im-banca").value = b; });
 }
 
 async function ler() {
@@ -402,6 +432,6 @@ async function salvar() {
   } catch (e) { toast("Não consegui salvar: " + e.message); b.disabled = false; b.textContent = "Tentar de novo"; }
 }
 
-G.Importador = { tela, parseQuestoes, parseGabarito, limpar, linhasDaPagina };
+G.Importador = { tela, linksBusca, parseQuestoes, parseGabarito, limpar, linhasDaPagina };
 if (typeof module !== "undefined") module.exports = G.Importador;
 })(typeof window !== "undefined" ? window : globalThis);
