@@ -7,5 +7,7 @@ window.CAMOCIM_CONFIG = {
   supabaseAnonKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRpcG9iY2JqcHFwZ3B4ZWpubnZoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQ1MDkzNjYsImV4cCI6MjExMDA4NTM2Nn0.oRR5gPyoMFgXjAcFbPdQ1PMLQ7tqFMDeIOpTo0zW6Uk",
   apiGerar: "/api/gerar",
   contato: "WhatsApp (95) 99121-8946 · fdahmsb@gmail.com",
-  email: "fdahmsb@gmail.com"
+  email: "fdahmsb@gmail.com",
+  // Endereço do Farol da Aprovação (controle de estudos) que recebe os resultados
+  farolUrl: "https://fdahmsb-prog.github.io/farol-da-aprovacao/"
 };

@@ -57,7 +57,7 @@ nav.side a:hover{background:rgba(255,255,255,.07);color:#fff}
 nav.side a.on{background:rgba(242,194,48,.16);color:#fff;box-shadow:inset 3px 0 0 var(--mark)}
 nav.side a .n{margin-left:auto;background:var(--mark);color:#14213d;font-size:11px;font-weight:600;border-radius:99px;padding:0 7px;font-variant-numeric:tabular-nums}
 nav.side .foot{margin-top:auto;font-size:12px;opacity:.55;padding:8px 12px}
-main{padding:28px clamp(16px,3vw,40px) 90px;max-width:1100px;width:100%}
+main{padding:28px clamp(16px,3vw,40px) 90px;max-width:1100px;width:100%;min-width:0}
 .head{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;justify-content:space-between;margin-bottom:20px}
 .head p{margin:4px 0 0;color:var(--muted)}
 .card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:18px}
@@ -233,6 +233,7 @@ const ICONS = {
   inicio: '<path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
   sair: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>',
   questoes: '<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/>',
+  cadernos: '<path d="M4 5a2 2 0 0 1 2-2h11v16H6a2 2 0 0 0-2 2z"/><path d="M4 21a2 2 0 0 1 2-2h11v2H6M9 8h5M9 11h5"/>',
   simulado: '<circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2M9 2h6"/>',
   revisao: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/>',
   legislacao: '<path d="M4 4h10l6 6v10a1 1 0 0 1-1 1H4z"/><path d="M14 4v6h6M8 14h8M8 17h6"/>',
@@ -251,12 +252,12 @@ let sb = null, ME = null, PROFILE = null;
 const isAdmin = () => PROFILE && PROFILE.role === "admin";
 const canEdit = q => isAdmin() || (ME && q.owner === ME.id);
 const DEFAULT_SETTINGS = { nome: "", meta: 20, penal: true, tema: "auto", alvo: 3 };
-let S = { questions: [], docs: [], answers: {}, review: {}, flags: {}, notes: {}, simulados: [], settings: { ...DEFAULT_SETTINGS } };
+let S = { questions: [], docs: [], answers: {}, review: {}, flags: {}, notes: {}, simulados: [], cadernos: [], settings: { ...DEFAULT_SETTINGS } };
 let saveTimer = null;
 function save() {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(async () => {
-    const dados = { answers: S.answers, review: S.review, flags: S.flags, notes: S.notes, simulados: S.simulados, settings: S.settings };
+    const dados = { answers: S.answers, review: S.review, flags: S.flags, notes: S.notes, simulados: S.simulados, cadernos: (S.cadernos || []).map(({ _rel, ...c }) => c), settings: S.settings };
     try { localStorage.setItem("camocim_cache_" + ME.id, JSON.stringify(dados)); } catch (e) {}
     const { error } = await sb.from("estado").upsert({ user_id: ME.id, dados, atualizado_em: new Date().toISOString() });
     if (error) toast("Não consegui salvar seu progresso na nuvem. Verifique a internet.");
@@ -281,7 +282,7 @@ async function loadAll() {
   S.questions = qs.map(rowToQ);
   S.docs = docs.map(d => ({ id: d.id, nome: d.nome, texto: d.texto, disciplina: d.disciplina || "", data: Date.parse(d.criado_em) }));
   const st = (est.data && est.data.dados) || {};
-  S.answers = st.answers || {}; S.review = st.review || {}; S.flags = st.flags || {}; S.notes = st.notes || {}; S.simulados = st.simulados || [];
+  S.answers = st.answers || {}; S.review = st.review || {}; S.flags = st.flags || {}; S.notes = st.notes || {}; S.simulados = st.simulados || []; S.cadernos = st.cadernos || [];
   S.settings = { ...DEFAULT_SETTINGS, ...(st.settings || {}), nome: PROFILE.nome || (st.settings && st.settings.nome) || "" };
 }
 async function insertQuestions(list, global) {
@@ -500,9 +501,9 @@ function statsAll() {
 const lastAns = id => { const a = S.answers[id]; return a && a.length ? a[a.length - 1] : null; };
 
 /* ---------------- Interface: navegação ---------------- */
-const BASE_VIEWS = [["inicio","Início"],["questoes","Questões"],["simulado","Simulado"],["revisao","Revisão"],["legislacao","Legislação"],["desempenho","Desempenho"],["ajustes","Ajustes"]];
+const BASE_VIEWS = [["inicio","Início"],["questoes","Questões"],["cadernos","Cadernos"],["simulado","Simulado"],["revisao","Revisão"],["legislacao","Legislação"],["desempenho","Desempenho"],["ajustes","Ajustes"]];
 let VIEWS = [...BASE_VIEWS];
-const route = () => { const h = location.hash.replace("#", ""); return VIEWS.some(v => v[0] === h) ? h : "inicio"; };
+const route = () => { const h = location.hash.replace("#", ""); if (/^caderno-/.test(h)) return "cadernos"; return VIEWS.some(v => v[0] === h) ? h : "inicio"; };
 function renderNav() {
   const r = route(); const due = dueIds().length;
   $("#sidenav").innerHTML = `<div class="brand"><div class="dot">MC</div><div><b>Método Camocim</b><small>Concursos</small></div></div>` +
@@ -519,7 +520,7 @@ function renderNav() {
 function render() {
   if (!ME || !PROFILE || $("#app").hidden) return;
   renderNav(); const r = route(); const m = $("#main");
-  ({ inicio: vInicio, questoes: vQuestoes, simulado: vSimulado, revisao: vRevisao, legislacao: vLegislacao, desempenho: vDesempenho, ajustes: vAjustes, admin: vAdmin, importar: vImportar })[r](m);
+  ({ inicio: vInicio, questoes: vQuestoes, cadernos: vCadernos, simulado: vSimulado, revisao: vRevisao, legislacao: vLegislacao, desempenho: vDesempenho, ajustes: vAjustes, admin: vAdmin, importar: vImportar })[r](m);
   applyTheme();
 }
 window.addEventListener("hashchange", () => { window.scrollTo(0, 0); render(); });
@@ -646,6 +647,7 @@ function vInicio(m) {
       <div class="card stack"><h2>Comece por aqui</h2>
         <div class="list">
           <div class="row" style="justify-content:space-between"><div><b>Revisar erros</b><div class="small muted">Repetição espaçada: 1, 3, 7, 15 e 30 dias.</div></div><a class="btn sm ${due ? "mark" : ""}" href="#revisao">${due ? `Revisar ${due}` : "Abrir"}</a></div>
+          <div class="row" style="justify-content:space-between"><div><b>Cadernos de questões</b><div class="small muted">${(S.cadernos || []).length ? (S.cadernos || []).filter(c => cadStats(c).feitas < cadStats(c).total).length + " em andamento. Monte por disciplina, assunto e banca." : "Monte por disciplina, assunto e banca e resolva no seu ritmo."}</div></div><a class="btn sm" href="#cadernos">Abrir</a></div>
           <div class="row" style="justify-content:space-between"><div><b>Simulado rápido</b><div class="small muted">10 questões, cronômetro e nota no padrão CEBRASPE.</div></div><button class="btn sm" id="qsim">Começar</button></div>
           <div class="row" style="justify-content:space-between"><div><b>Caderno de erros</b><div class="small muted">${erradas} questões com último resultado errado.</div></div><button class="btn sm" id="qerr" ${erradas ? "" : "disabled"}>Resolver</button></div>
           ${isAdmin() ? `<div class="row" style="justify-content:space-between"><div><b>Lei seca em questões</b><div class="small muted">Envie um PDF ou DOCX da legislação e gere questões para o banco geral.</div></div><a class="btn sm" href="#legislacao">Enviar</a></div>` : `<div class="row" style="justify-content:space-between"><div><b>Questões inéditas</b><div class="small muted">Resolva as que você ainda não viu.</div></div><button class="btn sm" id="qine">Resolver</button></div>`}
@@ -663,11 +665,11 @@ function discBars(st, max) {
 }
 
 /* ---------------- Tela: Questões ---------------- */
-const practice = { filtro: { disc: "", banca: "", origem: "", tipo: "", status: "", busca: "", doc: "" }, list: null, i: 0 };
+const practice = { filtro: { disc: "", ass: "", banca: "", origem: "", tipo: "", status: "", busca: "", doc: "" }, list: null, i: 0 };
 const uniq = k => [...new Set(S.questions.map(q => q[k]).filter(Boolean))].sort((a, b) => a.localeCompare(b, "pt-BR"));
 function filtrar(f) {
   const b = (f.busca || "").toLowerCase();
-  return S.questions.filter(q => (!f.disc || q.disciplina === f.disc) && (!f.banca || q.banca === f.banca) && (!f.origem || q.origem === f.origem) && (!f.tipo || q.tipo === f.tipo) && (!f.doc || q.docId === f.doc)
+  return S.questions.filter(q => (!f.disc || q.disciplina === f.disc) && (!f.ass || q.assunto === f.ass) && (!f.banca || q.banca === f.banca) && (!f.origem || q.origem === f.origem) && (!f.tipo || q.tipo === f.tipo) && (!f.doc || q.docId === f.doc)
     && (!b || (q.enunciado + " " + (q.alternativas || []).join(" ") + " " + (q.assunto || "")).toLowerCase().includes(b))
     && (!f.status || (f.status === "ineditas" ? !S.answers[q.id] : f.status === "erradas" ? (lastAns(q.id) && !lastAns(q.id).ok) : f.status === "marcadas" ? S.flags[q.id] : f.status === "acertadas" ? (lastAns(q.id) && lastAns(q.id).ok) : true)));
 }
@@ -677,6 +679,7 @@ function vQuestoes(m) {
   m.innerHTML = `<div class="head"><div><h1>Questões</h1><p>Filtre o banco e resolva com correção na hora.</p></div>${isAdmin() ? `<div class="row"><button class="btn" id="novaq">Cadastrar questão</button></div>` : ""}</div>
     <div class="card"><div class="filters">
       ${sel("fd", "Disciplina", uniq("disciplina").map(x => [x, x]), f.disc)}
+      ${sel("fa", "Assunto", [...new Set(S.questions.filter(q => !f.disc || q.disciplina === f.disc).map(q => q.assunto).filter(Boolean))].sort((a, b) => a.localeCompare(b, "pt-BR", { numeric: true })).map(x => [x, x]), f.ass)}
       ${sel("fb", "Banca", uniq("banca").map(x => [x, x]), f.banca)}
       ${sel("fo", "Origem", [["concurso", "Provas anteriores"], ["gerada", "Geradas da legislação"], ["propria", "Cadastradas"], ["modelo", "Questões-modelo"]], f.origem)}
       ${sel("ft", "Tipo", [["CE", "Certo/Errado"], ["ME", "Múltipla escolha"]], f.tipo)}
@@ -688,10 +691,11 @@ function vQuestoes(m) {
     <div class="card timerbar" id="pcbar"></div>
     <div id="qhost" style="margin-top:14px"></div>
     <div class="row" id="qnav" style="margin-top:12px;justify-content:space-between"></div>`;
-  const read = () => { practice.filtro = { disc: $("#fd").value, banca: $("#fb").value, origem: $("#fo").value, tipo: $("#ft").value, status: $("#fs").value, busca: $("#fq").value.trim(), doc: $("#fdoc") ? $("#fdoc").value : "" }; };
+  const read = () => { practice.filtro = { disc: $("#fd").value, ass: $("#fa").value, banca: $("#fb").value, origem: $("#fo").value, tipo: $("#ft").value, status: $("#fs").value, busca: $("#fq").value.trim(), doc: $("#fdoc") ? $("#fdoc").value : "" }; };
   $("#fgo").onclick = () => { read(); practice.list = null; practice.i = 0; vQuestoes(m); };
   $("#fq").onkeydown = e => { if (e.key === "Enter") $("#fgo").click(); };
-  $("#fclr").onclick = () => { practice.filtro = { disc: "", banca: "", origem: "", tipo: "", status: "", busca: "", doc: "" }; practice.list = null; practice.i = 0; vQuestoes(m); };
+  $("#fclr").onclick = () => { practice.filtro = { disc: "", ass: "", banca: "", origem: "", tipo: "", status: "", busca: "", doc: "" }; practice.list = null; practice.i = 0; vQuestoes(m); };
+  $("#fd").onchange = () => { read(); practice.filtro.ass = ""; vQuestoes(m); };
   if ($("#novaq")) $("#novaq").onclick = () => editQuestion(null, () => { practice.list = null; vQuestoes(m); });
   if (!practice.list) { practice.list = shuffleIf(filtrar(practice.filtro)).map(q => q.id); practice.i = 0; practice.relogio = null; }
   if (!practice.relogio) practice.relogio = novoRelogio();
@@ -773,6 +777,117 @@ function editQuestion(q, done) {
   };
 }
 
+/* ---------------- Tela: Cadernos de questões ----------------
+   Caderno = conjunto salvo de questões montado por filtros (estilo TecConcursos).
+   Fica em S.cadernos (tabela estado, só do aluno). */
+const FAROL_URL = () => CFG.farolUrl || "https://fdahmsb-prog.github.io/farol-da-aprovacao/";
+const cadNovoFiltro = () => ({ nome: "", disc: "", ass: "", banca: "", ano: "", origem: "", tipo: "", status: "", n: 30, ordem: "aleatoria" });
+let CADF = cadNovoFiltro(); let CADA = null; // caderno aberto
+const uniqWhere = (k, f) => [...new Set(S.questions.filter(f).map(q => q[k]).filter(Boolean))].sort((a, b) => String(a).localeCompare(String(b), "pt-BR", { numeric: true }));
+function cadPool(f) {
+  return S.questions.filter(q => (!f.disc || q.disciplina === f.disc) && (!f.ass || q.assunto === f.ass) && (!f.banca || q.banca === f.banca) && (!f.ano || String(q.ano) === String(f.ano)) && (!f.origem || q.origem === f.origem) && (!f.tipo || q.tipo === f.tipo)
+    && (!f.status || (f.status === "ineditas" ? !S.answers[q.id] : f.status === "erradas" ? (lastAns(q.id) && !lastAns(q.id).ok) : f.status === "marcadas" ? S.flags[q.id] : true)));
+}
+function cadResumoFiltro(f) { return [f.disc || "Todas as disciplinas", f.ass, f.banca, f.ano, { concurso: "Provas anteriores", gerada: "Geradas da legislação", propria: "Cadastradas", modelo: "Questões-modelo" }[f.origem], { CE: "Certo/Errado", ME: "Múltipla escolha" }[f.tipo], { ineditas: "Não resolvidas", erradas: "Que errei", marcadas: "Marcadas" }[f.status]].filter(Boolean).join(" · "); }
+function cadStats(c) { const ids = c.ids.filter(id => qById(id)); let feitas = 0, ok = 0, ms = 0; ids.forEach(id => { const r = c.resp[id]; if (r) { feitas++; if (r.ok) ok++; ms += r.d || 0; } }); return { total: ids.length, feitas, ok, ms }; }
+function cadSalvar() { S.cadernos = S.cadernos || []; save(); }
+function cadCriar(f, ids, nome) { const c = { id: uid(), nome: (nome || f.nome || "").trim() || ("Caderno " + ((S.cadernos || []).length + 1)), criado: Date.now(), filtros: { ...f }, ids, resp: {}, i: 0, enviados: [] }; (S.cadernos = S.cadernos || []).unshift(c); cadSalvar(); return c; }
+function cadLink(c) { return location.origin + location.pathname + "#caderno-" + c.id; }
+function b64url(obj) { const bytes = new TextEncoder().encode(JSON.stringify(obj)); let bin = ""; bytes.forEach(b => bin += String.fromCharCode(b)); return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""); }
+/* Monta o pacote de resultado e abre o Farol da Aprovação. ids = questões respondidas a enviar */
+function enviarAoFarol({ tipo, nome, id, link, total, itens }) {
+  if (!itens.length) { toast("Nada novo para enviar: resolva mais questões primeiro."); return false; }
+  const grupos = {}; let ms = 0;
+  itens.forEach(({ q, ok, d }) => { const k = (q.disciplina || "Sem disciplina") + "\u0000" + (q.assunto || ""); const g = grupos[k] = grupos[k] || { disciplina: q.disciplina || "Sem disciplina", assunto: q.assunto || "", questoes: 0, acertos: 0 }; g.questoes++; if (ok) g.acertos++; ms += d || 0; });
+  const erros = itens.filter(x => !x.ok).slice(0, 20).map(({ q }) => ({ disciplina: q.disciplina || "", assunto: q.assunto || "", texto: String(q.enunciado || "").replace(/\s+/g, " ").slice(0, 220), link }));
+  const pacote = { v: 1, origem: "Método Camocim", tipo, id, nome, total, minutos: Math.round(ms / 60000), link, data: new Date().toISOString().slice(0, 10), porDisc: Object.values(grupos), erros };
+  const url = FAROL_URL() + "?resultado=" + b64url(pacote) + "#hoje";
+  const w = window.open(url, "_blank");
+  if (w) { try { w.opener = null; } catch (e) {} } else location.href = url;
+  return true;
+}
+function vCadernos(m) {
+  const hashId = (location.hash.match(/^#caderno-(.+)$/) || [])[1];
+  if (hashId) { const c = (S.cadernos || []).find(x => x.id === hashId); if (c) CADA = c.id; else { toast("Esse caderno não foi encontrado nesta conta."); } history.replaceState(null, "", "#cadernos"); }
+  const aberto = CADA && (S.cadernos || []).find(x => x.id === CADA);
+  if (aberto) return cadResolver(m, aberto);
+  CADA = null; const f = CADF; const cads = S.cadernos || [];
+  const sel = (id, label, opts, val, todos = "Todas") => `<label class="f" for="${id}">${label}<select id="${id}"><option value="">${todos}</option>${opts.map(o => `<option value="${esc(o[0])}" ${String(val) === String(o[0]) ? "selected" : ""}>${esc(o[1])}</option>`).join("")}</select></label>`;
+  const assuntos = uniqWhere("assunto", q => !f.disc || q.disciplina === f.disc);
+  const anos = uniqWhere("ano", () => true);
+  const disp = cadPool(f).length;
+  m.innerHTML = `<div class="head"><div><h1>Cadernos de questões</h1><p>Monte um caderno com os filtros que quiser, resolva no seu ritmo e volte de onde parou.</p></div></div>
+    <div class="card stack"><h2>Novo caderno</h2>
+      <div class="filters">
+        <label class="f" for="cf-nome" style="grid-column:1/-1">Nome do caderno<input type="text" id="cf-nome" maxlength="120" value="${esc(f.nome)}" placeholder="ex.: ICMS – substituição tributária (FCC)"></label>
+        ${sel("cf-disc", "Disciplina", uniq("disciplina").map(x => [x, x]), f.disc)}
+        ${sel("cf-ass", "Assunto", assuntos.map(x => [x, x]), f.ass, "Todos")}
+        ${sel("cf-banca", "Banca", uniq("banca").map(x => [x, x]), f.banca)}
+        ${sel("cf-ano", "Ano", anos.map(x => [x, x]), f.ano, "Todos")}
+        ${sel("cf-origem", "Origem", [["concurso", "Provas anteriores"], ["gerada", "Geradas da legislação"], ["propria", "Cadastradas"], ["modelo", "Questões-modelo"]], f.origem)}
+        ${sel("cf-tipo", "Tipo", [["CE", "Certo/Errado"], ["ME", "Múltipla escolha"]], f.tipo, "Todos")}
+        ${sel("cf-status", "Situação", [["ineditas", "Só as que não resolvi"], ["erradas", "Só as que errei"], ["marcadas", "Só as marcadas"]], f.status)}
+        <label class="f" for="cf-n">Quantidade<input type="number" id="cf-n" min="1" max="500" value="${+f.n || 30}"></label>
+        <label class="f" for="cf-ordem">Ordem<select id="cf-ordem"><option value="aleatoria" ${f.ordem === "aleatoria" ? "selected" : ""}>Aleatória</option><option value="recentes" ${f.ordem === "recentes" ? "selected" : ""}>Mais recentes primeiro</option><option value="antigas" ${f.ordem === "antigas" ? "selected" : ""}>Mais antigas primeiro</option></select></label>
+      </div>
+      <div class="row" style="justify-content:space-between"><span class="small muted"><b>${disp}</b> ${disp === 1 ? "questão disponível" : "questões disponíveis"} com esses filtros${disp ? ` · o caderno terá ${Math.min(disp, +f.n || 30)}` : ""}.</span><div class="row"><button class="btn ghost" id="cf-clr">Limpar filtros</button><button class="btn pri" id="cf-go" ${disp ? "" : "disabled"}>Criar caderno</button></div></div>
+    </div>
+    <div style="margin-top:14px">${cads.length ? `<div class="grid g2">${cads.map(c => { const s = cadStats(c); const fim = s.total && s.feitas >= s.total; const p = pct(s.ok, s.feitas); return `<div class="card stack">
+        <div class="row" style="justify-content:space-between;align-items:flex-start"><div><b>${esc(c.nome)}</b><div class="small muted">${esc(cadResumoFiltro(c.filtros || {}))}</div></div><span class="chip ${fim ? "okc" : s.feitas ? "mk" : ""}">${fim ? "Concluído" : s.feitas ? "Em andamento" : "Novo"}</span></div>
+        <div><div class="bar"><i style="width:${s.total ? pct(s.feitas, s.total) : 0}%"></i></div><div class="small muted" style="margin-top:6px;font-variant-numeric:tabular-nums">${s.feitas} de ${s.total} resolvidas${s.feitas ? ` · <b style="color:${p >= 70 ? "var(--ok)" : p >= 50 ? "var(--ink)" : "var(--bad)"}">${p}% de acerto</b> · ${fmtT(s.ms)}` : ""}</div></div>
+        <div class="row"><button class="btn sm pri" data-cad="${c.id}">${fim ? "Ver resultado" : s.feitas ? "Continuar" : "Resolver"}</button>${s.feitas - s.ok > 0 ? `<button class="btn sm" data-caderr="${c.id}">Refazer as ${s.feitas - s.ok} erradas</button>` : ""}<button class="btn sm ghost" data-cadfarol="${c.id}" title="Lança as questões resolvidas no Farol da Aprovação">Enviar ao Farol</button><button class="btn sm ghost" data-cadlink="${c.id}">Copiar link</button><button class="btn sm ghost danger" data-caddel="${c.id}">Excluir</button></div>
+      </div>`; }).join("")}</div>` : `<div class="card empty">Você ainda não tem cadernos. Escolha os filtros acima e clique em Criar caderno.</div>`}</div>`;
+  const ler = () => { CADF = { nome: $("#cf-nome").value, disc: $("#cf-disc").value, ass: $("#cf-ass").value, banca: $("#cf-banca").value, ano: $("#cf-ano").value, origem: $("#cf-origem").value, tipo: $("#cf-tipo").value, status: $("#cf-status").value, n: Math.max(1, Math.min(500, +$("#cf-n").value || 30)), ordem: $("#cf-ordem").value }; };
+  ["cf-disc", "cf-ass", "cf-banca", "cf-ano", "cf-origem", "cf-tipo", "cf-status", "cf-ordem"].forEach(id => $("#" + id).onchange = () => { ler(); if (id === "cf-disc") CADF.ass = ""; vCadernos(m); });
+  $("#cf-n").onchange = () => { ler(); vCadernos(m); };
+  $("#cf-clr").onclick = () => { CADF = cadNovoFiltro(); vCadernos(m); };
+  $("#cf-go").onclick = () => {
+    ler(); let pool = cadPool(CADF);
+    pool = CADF.ordem === "aleatoria" ? shuffle(pool) : pool.sort((a, b) => CADF.ordem === "recentes" ? (b.criada || 0) - (a.criada || 0) : (a.criada || 0) - (b.criada || 0));
+    const nomeAuto = [CADF.disc || "Misto", CADF.ass, CADF.banca].filter(Boolean).join(" – ");
+    const c = cadCriar(CADF, pool.slice(0, CADF.n).map(q => q.id), CADF.nome || nomeAuto);
+    CADF = cadNovoFiltro(); CADA = c.id; toast("Caderno criado com " + c.ids.length + " questões."); vCadernos(m); window.scrollTo(0, 0);
+  };
+  const achar = id => (S.cadernos || []).find(c => c.id === id);
+  m.querySelectorAll("[data-cad]").forEach(b => b.onclick = () => { CADA = b.dataset.cad; vCadernos(m); window.scrollTo(0, 0); });
+  m.querySelectorAll("[data-caderr]").forEach(b => b.onclick = () => { const c = achar(b.dataset.caderr); const ids = c.ids.filter(id => c.resp[id] && !c.resp[id].ok && qById(id)); const n = cadCriar({ ...(c.filtros || {}) }, shuffle(ids), c.nome + " – erradas"); CADA = n.id; toast("Novo caderno com as " + ids.length + " que você errou."); vCadernos(m); });
+  m.querySelectorAll("[data-cadfarol]").forEach(b => b.onclick = () => cadEnviar(achar(b.dataset.cadfarol)));
+  m.querySelectorAll("[data-cadlink]").forEach(b => b.onclick = async () => { const l = cadLink(achar(b.dataset.cadlink)); try { await navigator.clipboard.writeText(l); toast("Link copiado. Cole no Farol da Aprovação para abrir este caderno."); } catch (e) { modal(`<h2>Link do caderno</h2><p class="small muted">Copie e cole no Farol da Aprovação.</p><input type="text" value="${esc(l)}" readonly onfocus="this.select()"><div class="row" style="margin-top:12px"><button class="btn" onclick="closeModal()">Fechar</button></div>`); } });
+  m.querySelectorAll("[data-caddel]").forEach(b => b.onclick = () => { if (!b.dataset.c) { b.dataset.c = 1; b.textContent = "Confirmar exclusão"; return; } S.cadernos = S.cadernos.filter(c => c.id !== b.dataset.caddel); cadSalvar(); vCadernos(m); toast("Caderno excluído."); });
+}
+function cadEnviar(c) {
+  const ja = new Set(c.enviados || []);
+  const itens = c.ids.filter(id => c.resp[id] && !ja.has(id) && qById(id)).map(id => ({ q: qById(id), ok: c.resp[id].ok, d: c.resp[id].d }));
+  if (enviarAoFarol({ tipo: "caderno", nome: c.nome, id: c.id, link: cadLink(c), total: c.ids.length, itens })) { c.enviados = [...ja, ...itens.map(x => x.q.id)]; cadSalvar(); toast(itens.length + (itens.length === 1 ? " questão enviada" : " questões enviadas") + " ao Farol."); }
+}
+function cadResolver(m, c) {
+  c.ids = c.ids.filter(id => qById(id)); const n = c.ids.length;
+  if (!n) { m.innerHTML = `<div class="card empty">As questões deste caderno foram removidas do banco.<div class="row" style="justify-content:center;margin-top:12px"><button class="btn" id="cz-back">Voltar aos cadernos</button></div></div>`; $("#cz-back").onclick = () => { CADA = null; vCadernos(m); }; return; }
+  c.i = Math.min(Math.max(0, c.i || 0), n - 1);
+  const s = cadStats(c); const fim = s.feitas >= n;
+  const relogio = c._rel || (c._rel = novoRelogio());
+  m.innerHTML = `<div class="head"><div><h1>${esc(c.nome)}</h1><p>${esc(cadResumoFiltro(c.filtros || {}))}</p></div><div class="row"><button class="btn ghost" id="cz-back">← Meus cadernos</button></div></div>
+    <div class="card stack"><div class="row" style="justify-content:space-between"><span class="small"><b>${s.feitas}</b> de ${n} resolvidas · <b>${s.ok}</b> acertos${s.feitas ? " (" + pct(s.ok, s.feitas) + "%)" : ""}</span><span class="row"><button class="btn sm" id="cz-prox" ${fim ? "disabled" : ""}>Próxima não resolvida</button><button class="btn sm ghost" id="cz-farol">Enviar ao Farol</button></span></div>
+      <div class="bar"><i style="width:${pct(s.feitas, n)}%"></i></div>
+      <details ${n <= 60 ? "open" : ""}><summary class="small muted" style="cursor:pointer">Mapa do caderno (verde acertou, vermelho errou)</summary><div class="sheet" id="cz-sheet" style="margin-top:10px">${c.ids.map((id, k) => { const r = c.resp[id]; return `<button class="${r ? (r.ok ? "r" : "w") : ""} ${k === c.i ? "cur" : ""}" data-k="${k}" aria-label="Questão ${k + 1}">${k + 1}</button>`; }).join("")}</div></details>
+    </div>
+    ${fim ? `<div class="card stack" style="margin-top:14px;border-color:var(--ok)"><h2>Caderno concluído</h2><p>Você acertou <b>${s.ok} de ${n}</b> (${pct(s.ok, n)}%) em ${fmtT(s.ms)}.</p><div class="row">${s.feitas - s.ok ? `<button class="btn pri" id="cz-err">Refazer as ${s.feitas - s.ok} erradas</button>` : ""}<button class="btn" id="cz-zero">Recomeçar do zero</button><button class="btn ghost" id="cz-farol2">Enviar ao Farol</button></div></div>` : ""}
+    <div id="cz-host" style="margin-top:14px"></div>
+    <div class="row" style="margin-top:12px;justify-content:space-between"><button class="btn" id="cz-p" ${c.i ? "" : "disabled"}>← Anterior</button><span class="small muted">${c.i + 1} / ${n}</span><button class="btn pri" id="cz-n" ${c.i < n - 1 ? "" : "disabled"}>Próxima →</button></div>`;
+  const q = qById(c.ids[c.i]); const r = c.resp[q.id];
+  if (r) questionCard($("#cz-host"), q, { num: c.i + 1, total: n, reveal: true, simulado: { resp: r.r, set() {} } });
+  else questionCard($("#cz-host"), q, { num: c.i + 1, total: n, clock: () => relogio.now(), onAnswer: (ok, ms) => { const la = lastAns(q.id); c.resp[q.id] = { ok, r: la ? la.r : null, d: Math.round(ms || 0), t: Date.now() }; cadSalvar(); const st = cadStats(c); m.querySelector(".card .small").innerHTML = `<b>${st.feitas}</b> de ${n} resolvidas · <b>${st.ok}</b> acertos (${pct(st.ok, st.feitas)}%)`; const sb_ = $("#cz-sheet [data-k='" + c.i + "']"); if (sb_) sb_.className = (ok ? "r" : "w") + " cur"; if (st.feitas >= n) setTimeout(() => cadResolver(m, c), 900); } });
+  const ir = k => { c.i = k; cadSalvar(); cadResolver(m, c); window.scrollTo({ top: 0 }); };
+  $("#cz-back").onclick = () => { CADA = null; vCadernos(m); };
+  $("#cz-p").onclick = () => ir(c.i - 1); $("#cz-n").onclick = () => ir(c.i + 1);
+  $("#cz-sheet").onclick = e => { const b = e.target.closest("[data-k]"); if (b) ir(+b.dataset.k); };
+  $("#cz-prox").onclick = () => { const k = c.ids.findIndex((id, k) => k > c.i && !c.resp[id]); const k2 = k >= 0 ? k : c.ids.findIndex(id => !c.resp[id]); if (k2 >= 0) ir(k2); };
+  $("#cz-farol").onclick = () => cadEnviar(c);
+  if ($("#cz-farol2")) $("#cz-farol2").onclick = () => cadEnviar(c);
+  if ($("#cz-err")) $("#cz-err").onclick = () => { const ids = c.ids.filter(id => c.resp[id] && !c.resp[id].ok); const nc = cadCriar({ ...(c.filtros || {}) }, shuffle(ids), c.nome + " – erradas"); CADA = nc.id; vCadernos(m); };
+  if ($("#cz-zero")) $("#cz-zero").onclick = e => { const b = e.target; if (!b.dataset.c) { b.dataset.c = 1; b.textContent = "Confirmar: apagar respostas deste caderno"; return; } c.resp = {}; c.i = 0; c.enviados = []; c._rel = null; cadSalvar(); cadResolver(m, c); };
+}
+
 /* ---------------- Tela: Simulado ---------------- */
 let SIM = null; let simTick = null;
 function startSim({ n, disc, tempo, banca, origem }) {
@@ -828,13 +943,14 @@ function finishSim() {
 }
 function simResult(m) {
   const r = SIM.res; const n = SIM.ids.length;
-  m.innerHTML = `<div class="head"><div><h1>Resultado do simulado</h1><p>${n} questões em ${Math.round(r.tempo / 60000)} min</p></div><div class="row"><button class="btn" id="s-new">Novo simulado</button></div></div>
+  m.innerHTML = `<div class="head"><div><h1>Resultado do simulado</h1><p>${n} questões em ${Math.round(r.tempo / 60000)} min</p></div><div class="row"><button class="btn" id="s-farol" ${SIM.enviado ? "disabled" : ""}>${SIM.enviado ? "Enviado ao Farol" : "Enviar ao Farol"}</button><button class="btn" id="s-new">Novo simulado</button></div></div>
     <div class="grid g4"><div class="card tile"><div class="k">Aproveitamento</div><div class="v">${pct(r.c, n)}%</div></div><div class="card tile"><div class="k">Acertos</div><div class="v" style="color:var(--ok)">${r.c}</div></div><div class="card tile"><div class="k">Erros</div><div class="v" style="color:var(--bad)">${r.e}</div></div><div class="card tile"><div class="k">Nota líquida</div><div class="v">${r.liquida}</div><div class="s">${S.settings.penal ? "Errada em C/E anula uma certa" : "Sem penalização"} · ${r.b} em branco</div></div>
     <div class="card tile"><div class="k">Tempo médio por questão</div><div class="v">${fmtT(r.tempo / n)}</div><div class="s">meta ${fmtT(alvoMs())} · total ${fmtT(r.tempo)}</div></div>
     <div class="card tile"><div class="k">Questões acima da meta</div><div class="v">${SIM.ids.filter(id => (SIM.tempo[id] || 0) > alvoMs()).length}</div><div class="s">em vermelho na folha abaixo</div></div></div>
     <div class="card" style="margin-top:14px"><h3 style="margin-bottom:10px">Gabarito — toque para ver a questão comentada (o número de baixo é o tempo gasto)</h3><div class="sheet" id="sheet">${SIM.ids.map((id, k) => { const q = qById(id); const a = SIM.resp[id]; const cls = a === undefined ? "" : String(a) === String(q.gabarito) ? "r" : "w"; const tq = SIM.tempo[id] || 0; return `<button class="${cls}" data-k="${k}" style="height:auto;padding:4px 0;line-height:1.2" title="Tempo: ${fmtT(tq)}">${k + 1}<br><small style="${tq > alvoMs() ? "color:#fff;text-decoration:underline" : "opacity:.8"}">${fmtT(tq)}</small></button>`; }).join("")}</div></div>
     <div id="shost" style="margin-top:14px"></div>`;
   $("#s-new").onclick = () => { SIM = null; vSimulado(m); };
+  $("#s-farol").onclick = () => { const itens = SIM.ids.filter(id => SIM.resp[id] !== undefined && qById(id)).map(id => { const q = qById(id); return { q, ok: String(SIM.resp[id]) === String(q.gabarito), d: SIM.tempo[id] || 0 }; }); if (enviarAoFarol({ tipo: "simulado", nome: "Simulado " + new Date().toLocaleDateString("pt-BR") + (SIM.disc ? " – " + SIM.disc : ""), id: "sim-" + SIM.start, link: location.origin + location.pathname + "#simulado", total: SIM.ids.length, itens })) { SIM.enviado = true; simResult(m); } };
   $("#sheet").onclick = e => { const b = e.target.closest("[data-k]"); if (!b) return; const id = SIM.ids[+b.dataset.k]; const q = qById(id); questionCard($("#shost"), q, { num: +b.dataset.k + 1, total: n, simulado: { resp: SIM.resp[id] ?? null, set() {} }, reveal: true }); $("#shost").scrollIntoView({ behavior: "smooth" }); };
 }
 

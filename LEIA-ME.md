@@ -65,6 +65,15 @@ update public.profiles set role = 'admin', status = 'ativo' where email = 'seu-e
 
 3. Saia e entre de novo. Vai aparecer o menu **Administração**.
 
+## Cadernos de questões (novo)
+
+- Menu **Cadernos**: o aluno escolhe disciplina, assunto, banca, ano, origem, tipo, situação (não resolvidas, erradas, marcadas), quantidade e ordem, e cria um caderno com nome.
+- O caderno guarda onde o aluno parou, mostra o mapa de acertos e erros e permite **Refazer as erradas** (gera um caderno só com elas) ou **Recomeçar do zero**.
+- Fica salvo na nuvem junto com o progresso do aluno (tabela `estado`). Não precisa mudar o banco.
+- **Enviar ao Farol**: manda as questões resolvidas para o Farol da Aprovação (controle de estudos). Cada questão é enviada uma vez só. O simulado também tem esse botão.
+- **Copiar link**: gera um link que abre o caderno direto (só funciona na conta de quem criou).
+- A tela Questões ganhou o filtro **Assunto**.
+
 ## Como funciona a venda (por enquanto, sem pagamento automático)
 
 1. O aluno cria a conta e fica **Aguardando liberação**. A tela mostra o seu contato.
