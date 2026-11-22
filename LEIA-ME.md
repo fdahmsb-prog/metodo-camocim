@@ -1,95 +1,64 @@
-# Método Camocim Concursos — como colocar no ar
+# Robô de provas anteriores — Método Camocim
 
-App de questões com login, progresso salvo na nuvem e liberação manual de alunos.
-Só o administrador gera e cadastra questões; os alunos resolvem. Assim o custo de IA fica sob seu controle.
+Transforma uma prova de concurso (PDF oficial da banca) em questões prontas para o Camocim.
+
+O que ele faz:
+1. Baixa o caderno de provas e o gabarito definitivo pelos links que você informar.
+2. Lê o PDF em duas colunas e separa as questões, tanto Certo/Errado (Cebraspe) quanto múltipla escolha (FGV, FCC, Vunesp e outras).
+3. Aplica o gabarito oficial e tira as questões anuladas.
+4. Se você quiser, escreve com a IA o comentário, o fundamento, a disciplina e o assunto de cada questão.
+5. Grava o arquivo `.json` e um relatório em `questoes/pendentes/`.
+
+O robô **não importa nada sozinho no app**. Você revisa e importa em Ajustes → Importar questões.
 
 ## Arquivos
 
-| Arquivo | O que é |
+| Arquivo | Onde fica no repositório metodo-camocim |
 |---|---|
-| `index.html` | O app (telas do aluno e do administrador) |
-| `config.js` | Endereço e chave pública do Supabase, contato de suporte |
-| `api/gerar.js` | Servidor que gera questões com IA (Vercel), só para o administrador |
-| `package.json` | Configuração mínima para o Vercel |
-| `supabase/schema.sql` | Tabelas e regras de acesso do banco |
-| `supabase/seed.sql` | 28 questões-modelo (exemplos, não são de provas reais) |
+| `robo.py` | `robo/robo.py` |
+| `requirements.txt` | `robo/requirements.txt` |
+| `robo-provas.yml` | `.github/workflows/robo-provas.yml` |
 
-## Passo 1 — Supabase (banco de dados e login)
+## Configurar uma vez
 
-1. Crie uma conta em supabase.com e clique em **New project**. Escolha a região **South America (São Paulo)** e anote a senha do banco.
-2. No menu lateral, abra **SQL Editor → New query**, cole todo o conteúdo de `supabase/schema.sql` e clique em **Run**.
-3. Faça o mesmo com `supabase/seed.sql`, para carregar as questões-modelo.
-4. Em **Authentication → URL Configuration**, coloque em **Site URL** o endereço do app no Vercel (ex.: `https://metodo-camocim.vercel.app`). Volte aqui depois do Passo 3, quando souber o endereço.
-5. Em **Authentication → Providers → Email**, decida se o aluno precisa confirmar o e-mail. Para testar, você pode desligar a opção *Confirm email*.
-6. Em **Project Settings → API**, copie:
-   - **Project URL** e a chave **anon public**, que vão para o `config.js`;
-   - a chave **service_role**, que vai só para o Vercel (Passo 3). Ela é secreta.
+1. No GitHub, abra o repositório **metodo-camocim** → **Settings** → **Secrets and variables** → **Actions** → **New repository secret**.
+2. Nome: `ANTHROPIC_API_KEY`. Valor: a mesma chave `sk-ant-...` que está no Vercel. Clique em **Add secret**.
+3. (Opcional) Na aba **Variables**, crie `ANTHROPIC_MODEL` para escolher outro modelo.
 
-## Passo 2 — config.js
+## Usar
 
-Preencha:
+1. No site oficial da banca, abra a página do concurso. Com o botão direito, copie o link do **caderno de provas** e do **gabarito definitivo** do cargo. Na Cebraspe, os conhecimentos básicos e os específicos costumam ter gabaritos separados: copie os dois.
+2. No GitHub, vá em **Actions** → **Robô de provas anteriores** → **Run workflow**.
+3. Cole os links nos campos **prova** e **gabarito** (se houver mais de um, separe por espaço). Preencha banca, ano, órgão e cargo e clique em **Run workflow**.
+4. Em alguns minutos o robô termina. Clique na execução para ver o relatório. O arquivo `.json` fica na pasta `questoes/pendentes` do repositório e também em **Artifacts**.
+5. Baixe o `.json`, leia o relatório e importe no Camocim.
 
-```js
-window.CAMOCIM_CONFIG = {
-  supabaseUrl: "https://SEU-PROJETO.supabase.co",
-  supabaseAnonKey: "SUA-CHAVE-ANON",
-  apiGerar: "/api/gerar",
-  contato: "WhatsApp (95) 9 0000-0000"
-};
+Para só ver os PDFs de uma página, preencha apenas o campo **pagina**. Alguns sites montam a lista com JavaScript e o robô não enxerga os links; nesse caso, copie os links à mão.
+
+## O relatório avisa
+
+- Quais questões foram anuladas e ficaram de fora.
+- Números de questões que não foram encontrados na prova.
+- Questões sem resposta no gabarito (por exemplo, faltou o gabarito dos conhecimentos básicos).
+- Questões com fórmula ou símbolo mal lido: corrija o enunciado antes de importar.
+- Questões que dependem de figura, gráfico ou tabela: o app não mostra imagens, então descreva a figura no enunciado.
+
+## Limites
+
+- Só PDFs com texto. Provas escaneadas (imagem) precisam do Importar PDF do próprio app, que tem leitura por OCR.
+- Fórmulas matemáticas costumam sair mal; o relatório aponta quais são.
+- Os comentários da IA partem do gabarito oficial, mas devem ser revisados antes de vender, principalmente os de legislação estadual e os que citam artigo de lei.
+
+## Cuidados
+
+- Use só os sites oficiais das bancas. Não copie questões nem comentários de TecConcursos, Qconcursos ou de cursinhos: os termos desses sites proíbem e os comentários têm autor.
+- Antes de vender, confirme com um advogado o uso comercial de provas de concurso.
+
+## Rodar no computador (opcional)
+
+```
+pip install -r robo/requirements.txt
+python robo/robo.py converter --prova LINK_OU_ARQUIVO.pdf --gabarito LINK_OU_ARQUIVO.pdf --banca FGV --ano 2025 --orgao SEFAZ-PR --cargo "Auditor Fiscal"
 ```
 
-## Passo 3 — GitHub e Vercel
-
-1. Crie um repositório no GitHub (conta `fdahmsb-prog`), por exemplo `metodo-camocim`, e envie todos os arquivos desta pasta mantendo a estrutura (`api/` e `supabase/`).
-2. No Vercel: **Add New → Project**, importe o repositório e clique em **Deploy**. Não precisa de comando de build.
-3. Em **Settings → Environment Variables**, cadastre:
-
-| Nome | Valor |
-|---|---|
-| `ANTHROPIC_API_KEY` | sua chave da Anthropic (console.anthropic.com) |
-| `SUPABASE_URL` | o Project URL do Supabase |
-| `SUPABASE_SERVICE_ROLE_KEY` | a chave service_role do Supabase |
-| `ANTHROPIC_MODEL` | opcional: padrão `claude-sonnet-5-5` |
-
-4. Clique em **Deployments → Redeploy** para as variáveis valerem.
-5. Para vender, o plano do Vercel precisa ser o **Pro**: o gratuito (Hobby) não permite uso comercial.
-
-## Passo 4 — Virar administrador
-
-1. Abra o app e crie sua conta em **Criar conta**.
-2. No Supabase, **SQL Editor**, rode trocando o e-mail:
-
-```sql
-update public.profiles set role = 'admin', status = 'ativo' where email = 'seu-email@exemplo.com';
-```
-
-3. Saia e entre de novo. Vai aparecer o menu **Administração**.
-
-## Cadernos de questões (novo)
-
-- Menu **Cadernos**: o aluno escolhe disciplina, assunto, banca, ano, origem, tipo, situação (não resolvidas, erradas, marcadas), quantidade e ordem, e cria um caderno com nome.
-- O caderno guarda onde o aluno parou, mostra o mapa de acertos e erros e permite **Refazer as erradas** (gera um caderno só com elas) ou **Recomeçar do zero**.
-- Fica salvo na nuvem junto com o progresso do aluno (tabela `estado`). Não precisa mudar o banco.
-- **Enviar ao Farol**: manda as questões resolvidas para o Farol da Aprovação (controle de estudos). Cada questão é enviada uma vez só. O simulado também tem esse botão.
-- **Copiar link**: gera um link que abre o caderno direto (só funciona na conta de quem criou).
-- A tela Questões ganhou o filtro **Assunto**.
-
-## Como funciona a venda (por enquanto, sem pagamento automático)
-
-1. O aluno cria a conta e fica **Aguardando liberação**. A tela mostra o seu contato.
-2. Você recebe o pagamento (Pix, por exemplo).
-3. Em **Administração**, clique em **Liberar 30 dias**, **1 ano** ou **Sem prazo**. Liberar de novo soma o prazo à data atual de vencimento.
-4. Quando o prazo vence, o aluno vê **Acesso vencido**, mas o histórico dele fica guardado para quando renovar.
-
-## O que fica para cada um
-
-- **Banco geral:** questões sem dono, visíveis para todos os alunos ativos. Só o administrador cria, importa, gera ou edita. Ao gerar ou importar, "Banco geral" já vem marcado.
-- **Alunos:** resolvem, fazem simulados, revisam e anotam. Não veem o menu Legislação, não cadastram, não importam e não usam a IA. O banco de dados também bloqueia isso, não só a tela.
-- **Progresso:** respostas, revisões, simulados e anotações de cada aluno ficam na tabela `estado`, só para o dono.
-- **Custo da IA:** só existe quando você gera questões com IA, por volta de US$ 0,005 cada. O painel de administração mostra o total dos últimos 30 dias. O número de alunos não aumenta esse custo. O gerador offline, também só seu, é gratuito.
-
-## Segurança
-
-- A chave anon no `config.js` é pública por natureza; quem protege os dados são as regras (RLS) do `schema.sql`.
-- A chave **service_role** e a chave da **Anthropic** ficam apenas nas variáveis do Vercel. Nunca as coloque no `config.js` nem no GitHub.
-- O aluno não consegue se liberar nem virar administrador: o banco ignora essas alterações quando não vêm de um administrador.
+Acrescente `--comentar` (com a variável `ANTHROPIC_API_KEY` definida) para gerar os comentários.
