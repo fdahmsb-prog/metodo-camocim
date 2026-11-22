@@ -1,0 +1,112 @@
+name: Robô de provas anteriores
+
+on:
+  workflow_dispatch:
+    inputs:
+      pagina:
+        description: "Só listar: link da página do concurso no site da banca (deixe a prova em branco)"
+        required: false
+        default: ""
+      prova:
+        description: "Link(s) do PDF do caderno de provas (separe por espaço)"
+        required: false
+        default: ""
+      gabarito:
+        description: "Link(s) do PDF do gabarito DEFINITIVO (separe por espaço)"
+        required: false
+        default: ""
+      banca:
+        description: "Banca (ex.: Cebraspe, FGV, FCC, Vunesp)"
+        required: false
+        default: ""
+      ano:
+        description: "Ano da prova"
+        required: false
+        default: ""
+      orgao:
+        description: "Órgão (ex.: SEFAZ-CE)"
+        required: false
+        default: ""
+      cargo:
+        description: "Cargo"
+        required: false
+        default: ""
+      tipo:
+        description: "Tipo de questão"
+        type: choice
+        options: [auto, CE, ME]
+        default: auto
+      comentar:
+        description: "Escrever comentários com a IA (precisa do segredo ANTHROPIC_API_KEY)"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+jobs:
+  robo:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r robo/requirements.txt
+
+      - name: Listar PDFs da página
+        if: ${{ inputs.prova == '' }}
+        env:
+          PAGINA: ${{ inputs.pagina }}
+        run: |
+          if [ -z "$PAGINA" ]; then echo "Preencha a página (para listar) ou a prova e o gabarito (para converter)."; exit 1; fi
+          {
+            echo "## PDFs encontrados"
+            echo '```'
+            python robo/robo.py listar --pagina "$PAGINA"
+            echo '```'
+            echo "Copie os links da prova e do gabarito definitivo e rode o robô de novo preenchendo esses campos."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Converter prova em JSON
+        if: ${{ inputs.prova != '' }}
+        env:
+          PROVA: ${{ inputs.prova }}
+          GABARITO: ${{ inputs.gabarito }}
+          BANCA: ${{ inputs.banca }}
+          ANO: ${{ inputs.ano }}
+          ORGAO: ${{ inputs.orgao }}
+          CARGO: ${{ inputs.cargo }}
+          TIPO: ${{ inputs.tipo }}
+          COMENTAR: ${{ inputs.comentar }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ANTHROPIC_MODEL: ${{ vars.ANTHROPIC_MODEL }}
+        run: |
+          if [ -z "$GABARITO" ] || [ -z "$BANCA" ] || [ -z "$ANO" ] || [ -z "$ORGAO" ] || [ -z "$CARGO" ]; then
+            echo "Preencha gabarito, banca, ano, órgão e cargo."; exit 1; fi
+          ARGS=()
+          for u in $PROVA; do ARGS+=(--prova "$u"); done
+          for u in $GABARITO; do ARGS+=(--gabarito "$u"); done
+          [ "$COMENTAR" = "true" ] && ARGS+=(--comentar)
+          [ -z "$ANTHROPIC_MODEL" ] && unset ANTHROPIC_MODEL
+          python robo/robo.py converter "${ARGS[@]}" --banca "$BANCA" --ano "$ANO" --orgao "$ORGAO" --cargo "$CARGO" --tipo "$TIPO" --saida-dir questoes/pendentes
+          rm -rf questoes/pendentes/_baixados
+          cat "$(ls -t questoes/pendentes/*.relatorio.md | head -1)" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Guardar no repositório
+        if: ${{ inputs.prova != '' }}
+        env:
+          MSG: "Robô: ${{ inputs.banca }} ${{ inputs.ano }} ${{ inputs.orgao }}"
+        run: |
+          git config user.name "robo-provas"
+          git config user.email "robo-provas@users.noreply.github.com"
+          git add questoes/pendentes
+          git commit -m "$MSG" || echo "Nada novo."
+          git push
+
+      - uses: actions/upload-artifact@v4
+        if: ${{ inputs.prova != '' }}
+        with:
+          name: questoes-${{ github.run_number }}
+          path: questoes/pendentes/
