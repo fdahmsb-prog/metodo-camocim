@@ -1217,7 +1217,7 @@ async function vImportar(m) {
   if (!isAdmin()) { location.hash = "inicio"; return; }
   window.APP = { $, esc, toast, modal, closeModal, loadScript, PDFJS, insertQuestions, renderNav, practice };
   m.innerHTML = `<div class="card empty">Carregando o importador…</div>`;
-  try { await loadScript("importador.js?v=3"); window.Importador.tela(m); }
+  try { await loadScript("importador.js?v=4"); window.Importador.tela(m); }
   catch (e) { m.innerHTML = `<div class="card empty">Não consegui carregar o importador: ${esc(e.message)}</div>`; }
 }
 async function vAdmin(m) {

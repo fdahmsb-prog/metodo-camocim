@@ -99,8 +99,9 @@ function limpar(paginas, soNumero) {
   const lim = paginas.length >= 4 ? Math.max(3, paginas.length * 0.3) : Infinity;
   return pls.map(ls => ls.filter((l, i) => {
     if (LIXO.test(l)) return false;
+    if (/^quest[ãa]o\s*\d{1,3}\b/i.test(l)) return true;
     const naBorda = i < 3 || i >= ls.length - 3;
-    if (paginas.length >= 6 && todas[norm(l)] >= paginas.length * 0.5 && l.length < 90 && !/^\(?[A-Ea-e]\)/.test(l)) return false;
+    if (paginas.length >= 6 && todas[norm(l)] >= paginas.length * 0.5 && l.length < 90 && !/^\(?[A-Ea-e][\)\s]/.test(l) && !/[.:;?]$/.test(l)) return false;
     return !(naBorda && freq[norm(l)] >= lim && l.length < 90);
   }).join("\n")).join("\n");
 }
@@ -112,7 +113,7 @@ function juntar(linhas) {
   for (const l of linhas) {
     if (!t) { t = l; continue; }
     if (/[a-zà-ú]-$/.test(t) && /^[a-zà-ú]/.test(l)) { t = /^(se|me|te|lhes?|l[oa]s?|n[oa]s?|vos|[oa]s?)\b/.test(l) ? t + l : t.slice(0, -1) + l; continue; }
-    const quebra = /[:;]$/.test(t) && ROM.test(l) || /^[IVX]{1,5}\.\s/.test(l) || /^[•●▪\-–]\s/.test(l) || /^\(\s*\)\s/.test(l) || (/^(Está correto|As afirmativas são|Assinale|É correto)/.test(l) && /^(\(\s*\)|[IVX]{1,5}\.)/m.test(t.split("\n").pop())) || /\|/.test(l);
+    const quebra = /[:;]$/.test(t) && ROM.test(l) || (/[.:;]$/.test(t) && /^[IVX]{1,4}\s+[A-ZÀ-Úa-zà-ú]/.test(l)) || /^Assinale a op[çc][ãa]o/.test(l) || /^[IVX]{1,5}\.\s/.test(l) || /^[•●▪\-–]\s/.test(l) || /^\(\s*\)\s/.test(l) || (/^(Está correto|As afirmativas são|Assinale|É correto)/.test(l) && /^(\(\s*\)|[IVX]{1,5}\.)/m.test(t.split("\n").pop())) || /\|/.test(l);
     t += (quebra ? "\n" : " ") + l;
   }
   return t.replace(/[ \t]+/g, " ").trim();
@@ -121,7 +122,56 @@ const OCRNUM = { O: "0", o: "0", I: "1", l: "1", "|": "1", T: "7", f: "7", Z: "2
 const numOcr = s => s.split("").map(c => OCRNUM[c] !== undefined ? OCRNUM[c] : c).join("");
 const LETRA_OCR = { "8": "B", "0": "CD", "O": "CD", "o": "CD", "Q": "D", "€": "C", "G": "C", "6": "C", "c": "C", "4": "A", "&": "E", "F": "E", "e": "E", "b": "B", "a": "A", "d": "D" };
 
+// Padrão Cebraspe múltipla escolha: "Questão N", alternativas "A texto" e textos-base "Texto XYZ1A1"
+function parseCebraspeME(texto, opt) {
+  const L = "ABCDE".slice(0, opt.nAlt || 5);
+  let linhas = texto.split("\n").map(l => l.trim()).filter(Boolean);
+  const textos = {}, resto = [];
+  for (let i = 0; i < linhas.length; i++) {
+    const m = linhas[i].match(/^Texto\s+([A-Z0-9]{4,})$/);
+    if (m) {
+      const bl = [];
+      let j = i + 1;
+      for (; j < linhas.length && j < i + 160; j++) {
+        if (/^Quest[ãa]o\s+\d{1,3}$/i.test(linhas[j]) || /^Texto\s+[A-Z0-9]{4,}$/.test(linhas[j])) { j--; break; }
+        bl.push(linhas[j]);
+        if (/(com adapta[çc][õo]es\)?\.?|adaptado\)?\.?)$/i.test(linhas[j]) || /^Internet:\s*</i.test(linhas[j])) break;
+      }
+      textos[m[1]] = juntar(bl.map(x => x)); i = j; continue;
+    }
+    resto.push(linhas[i]);
+  }
+  const ehTitulo = l => /^[A-ZÀ-Ú][A-ZÀ-Ú ,–\-()IVX]{5,}$/.test(l) && !/^[A-E]\s/.test(l) && l.split(" ").length >= 2;
+  const lixo = l => /--|^P\d$|^PROVA OBJETIVA/.test(l) || /^<[A-Z0-9]+>$/.test(l);
+  const qs = []; let q = null, disc = opt.disciplina || "", esperado = opt.inicio || 1;
+  for (const l of resto) {
+    const m = l.match(/^Quest[ãa]o\s+(\d{1,3})$/i);
+    if (m && (+m[1] === esperado || +m[1] === esperado + 1)) { q = { n: +m[1], ls: [], disciplina: disc }; qs.push(q); esperado = +m[1] + 1; continue; }
+    if (lixo(l)) continue;
+    if (ehTitulo(l)) { disc = l.replace(/^[^A-ZÀ-Ú]+/, ""); disc = disc.charAt(0) + disc.slice(1).toLowerCase(); continue; }
+    if (q) q.ls.push(l);
+  }
+  const out = qs.map(x => {
+    const ls = x.ls, pos = []; let fim = ls.length;
+    for (let k = L.length - 1; k >= 0; k--) {
+      let p = -1; for (let i = fim - 1; i >= 0; i--) if (new RegExp("^" + L[k] + "\\s+\\S").test(ls[i])) { p = i; break; }
+      if (p < 0) break; pos[k] = p; fim = p;
+    }
+    let enun, alts;
+    if (L.split("").every((c, k) => pos[k] !== undefined)) {
+      enun = juntar(ls.slice(0, pos[0]));
+      alts = L.split("").map((c, k) => juntar([ls[pos[k]].replace(/^[A-E]\s+/, "")].concat(ls.slice(pos[k] + 1, k + 1 < L.length ? pos[k + 1] : ls.length))));
+    } else { enun = juntar(ls); alts = L.split("").map(() => ""); }
+    const refs = [...new Set((enun.match(/\btextos?\s+([A-Z0-9]{4,})/gi) || []).map(t => t.split(/\s+/).pop()))];
+    const ctx = refs.filter(r => textos[r]).map(r => `Texto ${r}\n\n${textos[r]}`).join("\n\n");
+    return { n: x.n, enunciado: (ctx ? ctx + "\n\n" : "") + enun, alternativas: alts, disciplina: x.disciplina };
+  });
+  out.forEach((x, k) => { if (out[k + 1] && out[k + 1].n > x.n + 1) x.falta = x.n + 1; });
+  return out;
+}
+
 function parseQuestoes(texto, opt) {
+  if (opt.tipo !== "CE" && (texto.match(/^Quest[ãa]o\s+\d{1,3}$/gim) || []).length >= 5 && /^[A-E]\s+\S/m.test(texto)) return parseCebraspeME(texto, opt);
   const ME = opt.tipo !== "CE";
   const nAlt = ME ? (opt.nAlt || 5) : 0;
   const L = "ABCDE".slice(0, nAlt || 5);
@@ -219,9 +269,21 @@ function parseQuestoes(texto, opt) {
 function parseGabarito(texto) {
   let t = texto.replace(/\r/g, "");
   // formato em tabela: uma linha só com números e, logo abaixo, uma linha só com respostas
+  // formato em coluna: linhas só com números seguidas do mesmo número de linhas só com respostas
+  {
+    const ls0 = t.split("\n").map(x => x.trim()).filter(Boolean), out = []; let i = 0, achou = false;
+    const ehN = x => /^\d{1,3}$/.test(x), ehR = x => /^([A-E]|X|\*|C|E|NULA|ANULADA)$/i.test(x);
+    while (i < ls0.length) {
+      let j = i; while (j < ls0.length && ehN(ls0[j])) j++;
+      const k = j - i;
+      if (k >= 1 && ls0.slice(j, j + k).length === k && ls0.slice(j, j + k).every(ehR)) { for (let z = 0; z < k; z++) out.push(ls0[i + z] + " " + ls0[j + z]); i = j + k; achou = true; continue; }
+      out.push(ls0[i]); i++;
+    }
+    if (achou) t = out.join("\n");
+  }
   const ls = t.split("\n").map(x => x.trim()), pares = []; let tabela = false;
   for (let i = 0; i < ls.length - 1; i++) {
-    const ns = ls[i].split(/\s+/), rs = ls[i + 1].split(/\s+/);
+    const ns = ls[i].replace(/^(quest[ãa]o|quest[õo]es|item|itens|n[º°o]\.?)\s+/i, "").split(/\s+/), rs = ls[i + 1].replace(/^(gabarito|resposta|respostas)\s+/i, "").split(/\s+/);
     if (ns.length >= 5 && ns.every(x => /^\d{1,3}$/.test(x)) && rs.length === ns.length && rs.every(x => /^([A-E]|\*|X|NULA|ANULADA)$/i.test(x))) {
       pares.push(ns.map((n, k) => `${n} ${rs[k]}`).join("\n")); ls[i] = ls[i + 1] = ""; i++; tabela = true;
     } else if (/[a-zà-ú]{3}/i.test(ls[i]) && /turno|tipo|cargo|prova|caderno|manh[ãa]|tarde|conhecimentos|m[óo]dulo/i.test(ls[i])) pares.push("\n" + ls[i] + "\n");
