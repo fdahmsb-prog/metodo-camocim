@@ -1151,10 +1151,10 @@ function vAjustes(m) {
       <p class="small"><a class="btn" href="#importar">Importar prova em PDF →</a></p>
       <p class="small muted">Carregue um lote de questões em JSON. Formato:</p>
       <pre class="code">${esc(exemplo)}</pre>
-      <label class="btn" for="a-imp-f">Escolher arquivo .json<input type="file" id="a-imp-f" accept=".json,application/json" hidden></label>
+      <label class="btn" for="a-imp-f">Escolher arquivo .json<input type="file" id="a-imp-f" hidden></label>
       <textarea id="a-imp" rows="4" placeholder="…ou cole o JSON aqui"></textarea>
       ${isAdmin() ? `<label class="row small"><input type="checkbox" id="a-imp-g" checked> Banco geral: disponível para todos os alunos</label>` : `<p class="small muted">As questões importadas ficam só para você.</p>`}
-      <button class="btn pri" id="a-imp-go">Importar</button></div>` : ""}
+      <button class="btn pri" id="a-imp-go">Importar</button><p class="small" id="a-imp-st"></p></div>` : ""}
     <div class="card stack"><h2>Exportar</h2>
       <p class="small muted">Gera um arquivo JSON com as questões, para backup ou para reaproveitar em outro lugar.</p>
       <label class="f" for="a-exp-w">O que exportar<select id="a-exp-w"><option value="minhas">Minhas questões</option>${isAdmin() ? `<option value="geral">Banco geral</option>` : ""}<option value="todas">Todas as que eu vejo</option></select></label>
@@ -1170,11 +1170,11 @@ function vAjustes(m) {
   $("#a-pass").onclick = () => newPasswordModal();
   $("#a-reset-hist").onclick = e => { const b = e.target; if (!b.dataset.c) { b.dataset.c = 1; b.textContent = "Confirmar: zerar histórico"; return; } S.answers = {}; S.review = {}; S.simulados = []; save(); toast("Histórico zerado."); render(); };
   if (isAdmin()) {
-  $("#a-imp-f").onchange = async e => { const f = e.target.files[0]; if (f) $("#a-imp").value = await f.text(); };
+  $("#a-imp-f").onchange = async e => { const f = e.target.files[0]; if (!f) return; const t = (await f.text()).replace(/^\uFEFF/, ""); $("#a-imp").value = t; $("#a-imp-st").textContent = `Arquivo carregado: ${f.name} (${Math.round(f.size / 1024)} KB). Agora toque em Importar.`; };
   $("#a-imp-go").onclick = async () => {
     const btn = $("#a-imp-go");
     try {
-      let data = JSON.parse($("#a-imp").value); if (!Array.isArray(data)) data = data.questions || [];
+      const txt = $("#a-imp").value.replace(/^\uFEFF/, "").trim(); if (!txt) throw new Error("escolha o arquivo .json ou cole o conteúdo antes de tocar em Importar."); let data; try { data = JSON.parse(txt); } catch (e) { throw new Error("o conteúdo não é um JSON válido (" + e.message + "). Se colou o texto, confira se veio inteiro."); } if (!Array.isArray(data)) data = data.questions || [];
       if (!Array.isArray(data)) throw new Error("O JSON precisa ser uma lista de questões.");
       const ok = []; let bad = 0;
       for (const q of data) {
@@ -1188,8 +1188,8 @@ function vAjustes(m) {
       if (!ok.length) { toast("Nenhuma questão válida: confira enunciado e gabarito."); return; }
       btn.disabled = true; btn.textContent = "Importando…";
       await insertQuestions(ok, !!($("#a-imp-g") && $("#a-imp-g").checked));
-      renderNav(); practice.list = null; toast(`${ok.length} questões importadas${bad ? `, ${bad} ignoradas por falta de enunciado ou gabarito` : ""}.`); $("#a-imp").value = "";
-    } catch (e) { toast("Não consegui importar: " + e.message); }
+      renderNav(); practice.list = null; { const m = `${ok.length} questões importadas${bad ? `, ${bad} ignoradas por falta de enunciado ou gabarito` : ""}.`; toast(m); $("#a-imp-st").textContent = m; } $("#a-imp").value = "";
+    } catch (e) { const m = "Não consegui importar: " + (e.message || e.details || e.hint || JSON.stringify(e)); toast(m); $("#a-imp-st").textContent = m; }
     btn.disabled = false; btn.textContent = "Importar";
   };
   }
