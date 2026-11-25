@@ -1,0 +1,20 @@
+{
+  "name": "metodo-camocim",
+  "productName": "Método Camocim",
+  "version": "1.0.0",
+  "description": "Questões de concursos — Método Camocim",
+  "author": "Francisco Alves",
+  "main": "main.js",
+  "scripts": { "dist": "electron-builder --win --publish never" },
+  "devDependencies": { "electron": "^33.2.0", "electron-builder": "^25.1.8" },
+  "build": {
+    "appId": "br.com.metodocamocim.app",
+    "productName": "Método Camocim",
+    "artifactName": "Metodo-Camocim-${version}-${arch}-${os}.${ext}",
+    "files": ["main.js", "www/**/*"],
+    "icon": "icon.png",
+    "win": { "target": [{ "target": "nsis", "arch": ["x64"] }, { "target": "portable", "arch": ["x64"] }] },
+    "portable": { "artifactName": "Metodo-Camocim-portatil.exe" },
+    "nsis": { "artifactName": "Metodo-Camocim-instalador.exe", "oneClick": false, "allowToChangeInstallationDirectory": true, "createDesktopShortcut": true, "shortcutName": "Método Camocim" }
+  }
+}

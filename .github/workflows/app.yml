@@ -1,0 +1,78 @@
+name: App instalável (Windows e Android)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ["index.html", "importador.js", "config.js", "app/**", ".github/workflows/app.yml"]
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - name: Gerar instalador Windows
+        shell: bash
+        run: |
+          mkdir -p app/desktop/www
+          cp index.html importador.js config.js app/icon.png app/desktop/www/
+          cp app/icon.png app/desktop/icon.png
+          cd app/desktop
+          npm install --no-audit --no-fund
+          npx electron-builder --win --publish never
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: app/desktop/dist/*.exe
+
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 21 }
+      - uses: android-actions/setup-android@v3
+      - name: Gerar APK Android
+        run: |
+          cd app/mobile
+          mkdir -p www assets
+          cp ../../index.html ../../importador.js ../../config.js ../icon.png www/
+          cp ../icon.png assets/icon-only.png
+          cp ../icon.png assets/icon-foreground.png
+          cp ../icon.png assets/splash.png
+          npm install --no-audit --no-fund
+          npx cap add android
+          npx capacitor-assets generate --android --iconBackgroundColor '#0f4c5c' --splashBackgroundColor '#0f4c5c' || echo "ícones padrão"
+          npx cap sync android
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+          cp app/build/outputs/apk/debug/app-debug.apk ../../../Metodo-Camocim.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android
+          path: Metodo-Camocim.apk
+
+  publicar:
+    needs: [windows, android]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { path: saida, merge-multiple: true }
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: app
+          name: App Método Camocim
+          make_latest: true
+          body: |
+            Baixe o app do Método Camocim:
+            • Windows: Metodo-Camocim-instalador.exe (instala com atalho) ou Metodo-Camocim-portatil.exe (abre sem instalar)
+            • Android: Metodo-Camocim.apk (permita "instalar apps de fontes desconhecidas")
+          files: saida/*

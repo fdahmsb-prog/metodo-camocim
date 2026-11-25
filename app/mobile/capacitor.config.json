@@ -1,0 +1,6 @@
+{
+  "appId": "br.com.metodocamocim.app",
+  "appName": "Método Camocim",
+  "webDir": "www",
+  "android": { "allowMixedContent": false }
+}
