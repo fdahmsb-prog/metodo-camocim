@@ -38,9 +38,9 @@ jobs:
         with: { node-version: 20 }
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: 21 }
-      - uses: android-actions/setup-android@v3
       - name: Gerar APK Android
         run: |
+          echo "SDK: $ANDROID_HOME"
           cd app/mobile
           mkdir -p www assets
           cp ../../index.html ../../importador.js ../../config.js ../icon.png www/
