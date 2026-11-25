@@ -283,7 +283,8 @@ function parseGabarito(texto) {
   }
   const ls = t.split("\n").map(x => x.trim()), pares = []; let tabela = false;
   for (let i = 0; i < ls.length - 1; i++) {
-    const ns = ls[i].replace(/^(quest[ãa]o|quest[õo]es|item|itens|n[º°o]\.?)\s+/i, "").split(/\s+/), rs = ls[i + 1].replace(/^(gabarito|resposta|respostas)\s+/i, "").split(/\s+/);
+    let ns = ls[i].replace(/^(quest[ãa]o|quest[õo]es|item|itens|n[º°o]\.?)\s+/i, "").split(/\s+/), rs = ls[i + 1].replace(/^(gabarito|resposta|respostas)\s+/i, "").split(/\s+/);
+    { const z = ns.indexOf("0"); if (z >= 5 && ns.slice(z).every(x => x === "0")) { ns.length = z; rs.length = Math.min(rs.length, z); } }
     if (ns.length >= 5 && ns.every(x => /^\d{1,3}$/.test(x)) && rs.length === ns.length && rs.every(x => /^([A-E]|\*|X|NULA|ANULADA)$/i.test(x))) {
       pares.push(ns.map((n, k) => `${n} ${rs[k]}`).join("\n")); ls[i] = ls[i + 1] = ""; i++; tabela = true;
     } else if (/[a-zà-ú]{3}/i.test(ls[i]) && /turno|tipo|cargo|prova|caderno|manh[ãa]|tarde|conhecimentos|m[óo]dulo/i.test(ls[i])) pares.push("\n" + ls[i] + "\n");
