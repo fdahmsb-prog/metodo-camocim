@@ -76,6 +76,9 @@ jobs:
     needs: [windows, android]
     runs-on: ubuntu-latest
     steps:
+      - name: Remover log de erro antigo
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: gh release delete log-android -y --cleanup-tag --repo "$GITHUB_REPOSITORY" || true
       - uses: actions/download-artifact@v4
         with: { path: saida, merge-multiple: true }
       - uses: softprops/action-gh-release@v2
