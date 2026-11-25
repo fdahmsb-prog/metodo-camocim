@@ -39,7 +39,11 @@ jobs:
       - uses: actions/setup-java@v5
         with: { distribution: temurin, java-version: 17 }
       - name: Gerar APK Android
+        shell: bash
         run: |
+          set -eo pipefail
+          exec > >(tee "$GITHUB_WORKSPACE/build-android.log") 2>&1
+          set -x
           echo "SDK: $ANDROID_HOME"
           cd app/mobile
           mkdir -p www assets
@@ -55,6 +59,13 @@ jobs:
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon
           cp app/build/outputs/apk/debug/app-debug.apk ../../../Metodo-Camocim.apk
+      - name: Publicar log de erro
+        if: failure()
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: |
+          tail -c 60000 build-android.log > erro.txt || echo sem-log > erro.txt
+          gh release delete log-android -y --cleanup-tag || true
+          gh release create log-android erro.txt --title "log android" --notes "log" --prerelease
       - uses: actions/upload-artifact@v4
         with:
           name: android
