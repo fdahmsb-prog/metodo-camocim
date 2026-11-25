@@ -128,16 +128,17 @@ function parseCebraspeME(texto, opt) {
   let linhas = texto.split("\n").map(l => l.trim()).filter(Boolean);
   const textos = {}, resto = [];
   for (let i = 0; i < linhas.length; i++) {
-    const m = linhas[i].match(/^Texto\s+([A-Z0-9]{4,}(?:-[IVX]+)?)$/);
+    const m = linhas[i].match(/^(?:Texto|Situa[çc][ãa]o hipot[ée]tica)\s+([A-Z0-9]{3,}(?:-[IVX]+)?)$/i);
+    const situacao = m && /^Situa/i.test(linhas[i]);
     if (m) {
       const bl = [];
       let j = i + 1;
       for (; j < linhas.length && j < i + 160; j++) {
-        if (/^Quest[ãa]o\s+\d{1,3}$/i.test(linhas[j]) || /^Texto\s+[A-Z0-9]{4,}(?:-[IVX]+)?$/.test(linhas[j])) { j--; break; }
+        if (/^Quest[ãa]o\s+\d{1,3}$/i.test(linhas[j]) || /^(?:Texto|Situa[çc][ãa]o hipot[ée]tica)\s+[A-Z0-9]{3,}(?:-[IVX]+)?$/i.test(linhas[j])) { j--; break; }
         bl.push(linhas[j]);
-        if (/(com adapta[çc][õo]es\)?\.?|adaptado\)?\.?)$/i.test(linhas[j]) || /^Internet:\s*</i.test(linhas[j])) break;
+        if (!situacao && (/(com adapta[çc][õo]es\)?\.?|adaptado\)?\.?)$/i.test(linhas[j]) || /^Internet:\s*</i.test(linhas[j]))) break;
       }
-      textos[m[1]] = juntar(bl.map(x => x)); i = j; continue;
+      textos[m[1]] = { rot: situacao ? "Situação hipotética" : "Texto", txt: juntar(bl) }; i = j; continue;
     }
     resto.push(linhas[i]);
   }
@@ -162,8 +163,8 @@ function parseCebraspeME(texto, opt) {
       enun = juntar(ls.slice(0, pos[0]));
       alts = L.split("").map((c, k) => juntar([ls[pos[k]].replace(/^[A-E]\s+/, "")].concat(ls.slice(pos[k] + 1, k + 1 < L.length ? pos[k + 1] : ls.length))));
     } else { enun = juntar(ls); alts = L.split("").map(() => ""); }
-    const refs = [...new Set((enun.match(/\btextos?\s+[A-Z0-9]{4,}(?:-[IVX]+)?/gi) || []).map(t => t.split(/\s+/).pop()))];
-    const ctx = refs.filter(r => textos[r]).map(r => `Texto ${r}\n\n${textos[r]}`).join("\n\n");
+    const refs = [...new Set((enun.match(/\b(?:textos?|situa[çc][ãa]o hipot[ée]tica)\s+[A-Z0-9]{3,}(?:-[IVX]+)?/gi) || []).map(t => t.split(/\s+/).pop()))];
+    const ctx = refs.filter(r => textos[r]).map(r => `${textos[r].rot} ${r}\n\n${textos[r].txt}`).join("\n\n");
     return { n: x.n, enunciado: (ctx ? ctx + "\n\n" : "") + enun, alternativas: alts, disciplina: x.disciplina };
   });
   out.forEach((x, k) => { if (out[k + 1] && out[k + 1].n > x.n + 1) x.falta = x.n + 1; });
